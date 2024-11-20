@@ -1,6 +1,16 @@
+import { BanchoUser } from "bancho.js";
+
+export interface MMPlayerObj {
+   bancho: BanchoUser;
+   rating: {
+      rating: number;
+      rd: number;
+      vol: number;
+   }
+}
+
 export interface Player {
-   id: number;
-   name: string;
+   player: MMPlayerObj;
    rating: number;
    range: number;
 }
