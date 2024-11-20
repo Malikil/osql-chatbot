@@ -3,9 +3,16 @@ const matchmaker = require("../matching");
 const db = require("../db/connection");
 
 /**
+ * @param {PrivateMessage} msg 
+ */
+async function accept(msg) {
+   
+}
+
+/**
  * @param {PrivateMessage} msg
  */
-async function pvp(msg) {
+async function queue(msg) {
    console.log("Pvp match request");
    const player = await db.collection("players").findOne({ osuid: msg.user.id });
    matchmaker.searchForMatch({
@@ -19,4 +26,6 @@ async function pvp(msg) {
    msg.user.sendMessage("Searching for pvp match");
 }
 
-module.exports = pvp;
+module.exports = {
+   queue
+};
