@@ -6,6 +6,8 @@ const commands = {
    pvp: pvp.queue,
    queue: pvp.queue,
    q: pvp.queue,
+   unq: pvp.unqueue,
+   unqueue: pvp.unqueue,
    pve: soloMode,
    solo: soloMode
 };

@@ -1,12 +1,9 @@
 import { BanchoUser } from "bancho.js";
+import { Rating } from "./global";
 
 export interface MMPlayerObj {
    bancho: BanchoUser;
-   rating: {
-      rating: number;
-      rd: number;
-      vol: number;
-   }
+   rating: Rating
 }
 
 export interface Player {

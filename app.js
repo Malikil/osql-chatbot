@@ -16,7 +16,7 @@ client
             await msg.user.fetchFromAPI();
          }
          if (msg.message.startsWith("!")) {
-            const commandName = msg.message.slice(1);
+            const commandName = msg.message.slice(1).toLowerCase();
             (commands[commandName] || (() => {}))(msg);
          }
       });

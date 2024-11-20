@@ -4,7 +4,7 @@
    "main": "index.js",
    "scripts": {
       "start": "dotenvx run -- node app.js",
-      "dev": "dotenvx run -- nodemon app.js"
+      "dev": "nodemon --exec npm start"
    },
    "keywords": [],
    "author": "",

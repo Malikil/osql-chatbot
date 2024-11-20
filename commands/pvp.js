@@ -5,8 +5,9 @@ const db = require("../db/connection");
 /**
  * @param {PrivateMessage} msg 
  */
-async function accept(msg) {
-   
+async function unqueue(msg) {
+   matchmaker.unqueue(msg.user);
+   msg.user.sendMessage("Removed from queue");
 }
 
 /**
@@ -27,5 +28,6 @@ async function queue(msg) {
 }
 
 module.exports = {
-   queue
+   queue,
+   unqueue
 };

@@ -1,3 +1,5 @@
+const { BanchoUser } = require("bancho.js");
+
 /**
  * @param {import("../types/matchmaking").Player} p1
  * @param {import("../types/matchmaking").Player} p2
@@ -9,6 +11,7 @@ const withinRange = (p1, p2 = {}) => {
 };
 
 class Matchmaker {
+   /** @type {import("../types/matchmaking").Player[]} */
    #playerQueue;
    #options;
    #queueTimerId;
@@ -20,7 +23,6 @@ class Matchmaker {
     * @param {number} options.searchRangeIncrement How much should the rating range increase per matching attempt
     */
    constructor(createLobby, options = {}) {
-      /** @type {import("../types/matchmaking").Player[]} */
       this.#playerQueue = [];
       this.#options = {
          searchInterval: 2000,
@@ -62,6 +64,15 @@ class Matchmaker {
       this.#playerQueue.push(player);
       this.#playerQueue.sort((a, b) => a.rating - b.rating);
       console.log(this.#playerQueue);
+   }
+
+   /**
+    * @param {BanchoUser} player
+    */
+   unqueue(player) {
+      console.log(`Remove ${player.username} from queue`);
+      const playerIndex = this.#playerQueue.findIndex(p => p.player.bancho.id === player.id);
+      if (playerIndex >= 0) this.#playerQueue.splice(playerIndex, 1);
    }
 }
 
