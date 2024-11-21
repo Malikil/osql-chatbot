@@ -21,10 +21,22 @@ export interface MappoolMap {
    ratings: RatingSet
 }
 
+export enum ModpoolKey {
+   NM = 'nm',
+   HD = 'hd',
+   HR = 'hr',
+   DT = 'dt',
+   FM = 'fm'
+}
+
 export interface Mappool {
-   nm: MappoolMap[];
-   hd: MappoolMap[];
-   hr: MappoolMap[];
-   dt: MappoolMap[];
-   fm: MappoolMap[];
+   [modpoolKey: string]: MappoolMap[];
+}
+
+export interface LobbyState {
+   nextPlayer: number;
+   action: 'pick' | 'ban';
+   scores: number[];
+   bans: MappoolMap[];
+   picks: MappoolMap[];
 }
