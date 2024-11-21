@@ -4,7 +4,8 @@ const {
    BanchoLobbyTeamModes,
    BanchoLobbyWinConditions,
    BanchoLobbyPlayerScore,
-   BanchoMessage
+   BanchoMessage,
+   BanchoMods
 } = require("bancho.js");
 
 class LobbyRef {
@@ -42,8 +43,7 @@ class LobbyRef {
       const lobbyChannel = await this.#bancho.createLobby(
          `PackChal: ${this.#players[0].bancho.username} vs ${
             this.#players[1].bancho.username
-         } - ${Math.random()}`,
-         true
+         } - ${Math.random().toString().slice(2)}`
       );
       this.#lobby = lobbyChannel.lobby;
       console.log(`Created lobby: ${lobbyChannel.name}`);
@@ -70,7 +70,7 @@ class LobbyRef {
       // Handle lobby commands
       this.#lobby.channel.on("message", this.#handleLobbyCommand.bind(this));
       // Handle reffing stuff
-      this.#lobby.on("allPlayersReady", () => this.#lobby.startMatch());
+      this.#lobby.on("allPlayersReady", this.#playersReady.bind(this));
       this.#lobby.on("matchFinished", this.#songFinished.bind(this));
       // Send the intro message
       const poolUrl = this.#players.map(p => p.bancho.id).join("/");
@@ -113,13 +113,13 @@ class LobbyRef {
     */
    #banMap(map) {
       const mod = map.slice(0, 2).toLowerCase();
-      const mapNo = parseInt(map[2]);
+      const mapNo = parseInt(map[2]) - 1;
       const bannedMap = this.#mappool[mod][mapNo];
       if (this.#lobbyState.bans.includes(bannedMap))
          return this.#lobby.channel.sendMessage("That map is already banned");
       this.#lobbyState.bans.push(bannedMap);
-      if (this.#lobbyState.bans.length > 1) this.#lobbyState.action = "pick";
-      this.#lobbyState.nextPlayer = +!!this.#lobbyState.nextPlayer;
+      if (this.#lobbyState.bans.length > 3) this.#lobbyState.action = "pick";
+      this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       this.#lobby.channel.sendMessage(
          `Banned map: ${bannedMap.artist} - ${bannedMap.title} [${bannedMap.version}]`
       );
@@ -135,7 +135,7 @@ class LobbyRef {
     */
    async #pickMap(map) {
       const mod = map.slice(0, 2).toLowerCase();
-      const mapNo = parseInt(map[2]);
+      const mapNo = parseInt(map[2]) - 1;
       const pickedMap = this.#mappool[mod][mapNo];
       if (this.#lobbyState.bans.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map is banned");
@@ -144,6 +144,29 @@ class LobbyRef {
 
       await this.#lobby.setMap(pickedMap.id);
       await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
+      this.#lobbyState.picks.nextPick = pickedMap;
+      this.#lobbyState.picks.selectedModpool = mod;
+   }
+
+   async #playersReady() {
+      if (this.#lobbyState.picks.selectedModpool === "fm") {
+         // Make sure both players have mods enabled
+         await this.#lobby.updateSettings();
+         if (
+            this.#lobby.slots.some(player => {
+               if (!player) return;
+               return (
+                  !player.mods.includes(BanchoMods.NoFail) ||
+                  !(
+                     player.mods.includes(BanchoMods.Hidden) ||
+                     player.mods.includes(BanchoMods.HardRock)
+                  )
+               );
+            })
+         )
+            return this.#lobby.channel.sendMessage("NoFail is required. HD or HR is required.");
+      }
+      this.#lobby.startMatch();
    }
 
    /**
@@ -154,9 +177,11 @@ class LobbyRef {
       // Seems to be sorted in descending order
       const winnerIndex = this.#players.findIndex(p => p.bancho.id === scores[0].player.user.id);
       if (++this.#lobbyState.scores[winnerIndex] >= 4) return this.#matchCompleted();
+      // Track what maps are played so they can't be picked twice
+      this.#lobbyState.picks.push(this.#lobbyState.picks.nextPick);
 
       // Update the player's states
-      this.#lobbyState.nextPlayer = +!!this.#lobbyState.nextPlayer;
+      this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       this.#lobby.channel.sendMessage(
          `${this.#players[0].bancho.username} ${this.#lobbyState.scores[0]} - ${
             this.#lobbyState.scores[1]
@@ -176,23 +201,23 @@ class LobbyRef {
       );
       fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "POST",
-         body: { mp: this.#lobby.getHistoryUrl() },
+         body: JSON.stringify({ mp: this.#lobby.getHistoryUrl() }),
          headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
       })
          .then(
             () => this.#lobby.channel.sendMessage("Match results submitted to server"),
             err => console.error(err)
          )
-         .then(() => setTimeout(this.closeLobby.bind(this), 10000));
+         .then(() => setTimeout(this.closeLobby.bind(this), 45000));
    }
 
    async closeLobby() {
+      this.#lobby.removeAllListeners();
       this.#bancho = null;
       this.#mappool = null;
       this.#players = null;
       await this.#lobby
          .closeLobby()
-         .then(() => this.#lobby.removeAllListeners())
          .catch(err => console.warn(err))
          .then(() => (this.#lobby = null));
    }
