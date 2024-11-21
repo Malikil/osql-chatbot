@@ -174,7 +174,16 @@ class LobbyRef {
             this.#lobbyState.scores[1]
          } ${this.#players[1].bancho.username}`
       );
-      setTimeout(this.closeLobby, 15000);
+      fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+         method: "POST",
+         body: { mp: this.#lobby.getHistoryUrl() },
+         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
+      })
+         .then(
+            () => this.#lobby.channel.sendMessage("Match results submitted to server"),
+            err => console.error(err)
+         )
+         .then(() => setTimeout(this.closeLobby.bind(this), 10000));
    }
 
    async closeLobby() {
