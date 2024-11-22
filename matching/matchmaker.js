@@ -59,11 +59,14 @@ class Matchmaker {
          }));
       lobbies.forEach(lobby => {
          this.#pendingLobbies.push({
-            players: lobby.map(p => ({
-               player: p.player,
-               ready: false
-            }))
-         })
+            players: lobby.map(p => {
+               p.player.bancho.sendMessage("Match found! Type !ready to accept");
+               return {
+                  player: p.player,
+                  ready: false
+               };
+            })
+         });
       });
    }
 

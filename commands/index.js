@@ -9,6 +9,7 @@ const commands = {
    q: pvp.queue,
    unq: pvp.unqueue,
    unqueue: pvp.unqueue,
+   ready: pvp.ready,
    pve: soloMode,
    solo: soloMode
 };

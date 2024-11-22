@@ -150,6 +150,13 @@ class LobbyRef {
    #banMap(map) {
       const mod = map.slice(0, 2).toLowerCase();
       const mapNo = parseInt(map[2]) - 1;
+      if (
+         !(mod in this.#mappool) ||
+         isNaN(mapNo) ||
+         mapNo < 0 ||
+         mapNo >= this.#mappool[mod].length
+      )
+         return this.#lobby.channel.sendMessage("Unknown map");
       const bannedMap = this.#mappool[mod][mapNo];
       if (this.#lobbyState.bans.includes(bannedMap))
          return this.#lobby.channel.sendMessage("That map is already banned");
@@ -172,6 +179,13 @@ class LobbyRef {
    async #pickMap(map) {
       const mod = map.slice(0, 2).toLowerCase();
       const mapNo = parseInt(map[2]) - 1;
+      if (
+         !(mod in this.#mappool) ||
+         isNaN(mapNo) ||
+         mapNo < 0 ||
+         mapNo >= this.#mappool[mod].length
+      )
+         return this.#lobby.channel.sendMessage("Unknown map");
       const pickedMap = this.#mappool[mod][mapNo];
       if (this.#lobbyState.bans.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map is banned");
@@ -230,10 +244,18 @@ class LobbyRef {
 
    #matchCompleted() {
       this.#lobby.removeAllListeners();
+      this.#lobby.channel.removeAllListeners();
       this.#lobby.channel.sendMessage(
          `${this.#players[0].bancho.username} ${this.#lobbyState.scores[0]} - ${
             this.#lobbyState.scores[1]
          } ${this.#players[1].bancho.username}`
+      );
+      this.#lobby.channel.sendMessage(
+         `GGWP! ${
+            this.#lobbyState.scores[0] > this.#lobbyState.scores[1]
+               ? this.#players[0].bancho.username
+               : this.#players[1].bancho.username
+         } won the match.`
       );
       fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "POST",
@@ -249,13 +271,14 @@ class LobbyRef {
 
    async closeLobby() {
       this.#lobby.removeAllListeners();
-      this.#bancho = null;
-      this.#mappool = null;
-      this.#players = null;
+      this.#lobby.channel.removeAllListeners();
       await this.#lobby
          .closeLobby()
          .catch(err => console.warn(err))
          .then(() => (this.#lobby = null));
+      this.#bancho = null;
+      this.#mappool = null;
+      this.#players = null;
    }
 }
 
