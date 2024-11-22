@@ -6,8 +6,16 @@ export interface MMPlayerObj {
    rating: Rating
 }
 
-export interface Player {
+export interface QueuedPlayer {
    player: MMPlayerObj;
    rating: number;
    range: number;
+}
+
+export interface PendingLobby {
+   players: {
+      player: MMPlayerObj;
+      ready: boolean;
+   }[];
+   waitTimer?: number;
 }

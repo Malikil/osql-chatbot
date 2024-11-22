@@ -4,7 +4,7 @@ const LobbyRef = require("./lobby-ref");
 const matchmaker = new Matchmaker(
    p => {
       console.log("Create match with players", p);
-      new LobbyRef(p, p[0].player.bancho.banchojs).startMatch();
+      new LobbyRef(p, p[0].bancho.banchojs).startMatch();
    },
    { searchRangeIncrement: 1 / 6 }
 );

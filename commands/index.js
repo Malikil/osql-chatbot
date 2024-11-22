@@ -3,6 +3,7 @@ const pvp = require("./pvp");
 
 const commands = {
    ping: msg => msg.user.sendMessage("Pong!"),
+   commands: msg => msg.user.sendMessage(Object.keys(commands).join(", ")),
    pvp: pvp.queue,
    queue: pvp.queue,
    q: pvp.queue,

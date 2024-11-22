@@ -5,7 +5,8 @@ const {
    BanchoLobbyWinConditions,
    BanchoLobbyPlayerScore,
    BanchoMessage,
-   BanchoMods
+   BanchoMods,
+   BanchoLobbyPlayer
 } = require("bancho.js");
 
 class LobbyRef {
@@ -19,11 +20,11 @@ class LobbyRef {
    #lobbyState;
 
    /**
-    * @param {import("../types/matchmaking").Player[]} players
+    * @param {import("../types/matchmaking").MMPlayerObj[]} players
     * @param {BanchoClient} bancho
     */
    constructor(players, bancho) {
-      this.#players = players.map(p => p.player);
+      this.#players = players;
       this.#bancho = bancho;
       const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
       fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}`)
@@ -43,7 +44,7 @@ class LobbyRef {
       const lobbyChannel = await this.#bancho.createLobby(
          `PackChal: ${this.#players[0].bancho.username} vs ${
             this.#players[1].bancho.username
-         } - ${Math.random().toString().slice(2)}`
+         } - ${Date.now()}`
       );
       this.#lobby = lobbyChannel.lobby;
       console.log(`Created lobby: ${lobbyChannel.name}`);
@@ -72,14 +73,49 @@ class LobbyRef {
       // Handle reffing stuff
       this.#lobby.on("allPlayersReady", this.#playersReady.bind(this));
       this.#lobby.on("matchFinished", this.#songFinished.bind(this));
+      this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
       // Send the intro message
       const poolUrl = this.#players.map(p => p.bancho.id).join("/");
       this.#lobby.channel.sendMessage(
-         `Mappool can be found [${process.env.INTERNAL_URL}/mappool/${poolUrl} here]`
+         `Mappool can be found here: [${process.env.INTERNAL_URL}/mappool/${poolUrl} Mappool]`
       );
       this.#lobby.channel.sendMessage(
          `First ban: ${this.#players[this.#lobbyState.nextPlayer].bancho.username}`
       );
+   }
+
+   /**
+    * @param {object} arg0
+    * @param {BanchoLobbyPlayer} arg0.player
+    */
+   async #playerLeft({ player }) {
+      // If there are no players left, just close the lobby
+      if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
+
+      this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
+      this.#lobby.on("timerEnded", () => {
+         this.#lobby.channel.sendMessage("Match has been abandoned!");
+         fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+            method: "POST",
+            body: JSON.stringify({
+               mp: this.#lobby.getHistoryUrl(),
+               playerDefault: player.user.id
+            }),
+            headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
+         })
+            .then(
+               () => this.#lobby.channel.sendMessage("Match results submitted to server"),
+               err => console.error(err)
+            )
+            .then(() => setTimeout(this.closeLobby.bind(this), 45000));
+      });
+      this.#lobby.on("playerJoined", ({ player: joiner }) => {
+         if (player.user.id === joiner.user.id) {
+            this.#lobby.removeAllListeners("timerEnded");
+            this.#lobby.abortTimer();
+            this.#lobby.removeAllListeners("playerJoined");
+         }
+      });
    }
 
    /**

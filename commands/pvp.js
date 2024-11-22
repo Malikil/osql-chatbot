@@ -3,7 +3,7 @@ const matchmaker = require("../matching");
 const db = require("../db/connection");
 
 /**
- * @param {PrivateMessage} msg 
+ * @param {PrivateMessage} msg
  */
 async function unqueue(msg) {
    matchmaker.unqueue(msg.user);
@@ -16,18 +16,26 @@ async function unqueue(msg) {
 async function queue(msg) {
    console.log("Pvp match request");
    const player = await db.collection("players").findOne({ osuid: msg.user.id });
+   if (!player)
+      return msg.user.sendMessage(
+         `Please register first. Sign in at ${process.env.INTERNAL_URL} and view your profile.`
+      );
    matchmaker.searchForMatch({
-      player: {
-         bancho: msg.user,
-         rating: player.pvp
-      },
-      rating: player.pvp.rating,
-      range: player.pvp.rd
+      bancho: msg.user,
+      rating: player.pvp
    });
    msg.user.sendMessage("Searching for pvp match");
 }
 
+/**
+ * @param {PrivateMessage} msg
+ */
+function ready(msg) {
+   matchmaker.playerReady(msg.user);
+}
+
 module.exports = {
    queue,
-   unqueue
+   unqueue,
+   ready
 };
