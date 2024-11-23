@@ -94,28 +94,32 @@ class Matchmaker {
    }
 
    /**
-    * @param {BanchoUser} player 
+    * @param {BanchoUser} player
     */
    async playerReady(player) {
-      const lobby = this.#pendingLobbies.find(l => l.players.find(p => p.player.bancho.id === player.id));
+      const lobby = this.#pendingLobbies.find(l =>
+         l.players.find(p => p.player.bancho.id === player.id)
+      );
       if (!lobby) return;
 
       const lobbyPlayer = lobby.players.find(p => p.player.bancho.id === player.id);
       lobbyPlayer.ready = true;
       if (lobby.players.every(p => p.ready)) {
-         if (lobby.waitTimer)
-            clearTimeout(lobby.waitTimer);
+         if (lobby.waitTimer) clearTimeout(lobby.waitTimer);
          this.#createLobby(lobby.players.map(p => p.player));
-      }
-      else {
-         await player.sendMessage('Waiting for opponent');
+      } else {
+         await player.sendMessage("Waiting for opponent");
          if (!lobby.waitTimer)
             lobby.waitTimer = setTimeout(() => {
-               lobby.players.forEach(p => p.player.bancho.sendMessage('Lobby expired'));
+               lobby.players.forEach(p => p.player.bancho.sendMessage("Lobby expired"));
                const lobbyIndex = this.#pendingLobbies.findIndex(l => l === lobby);
                this.#pendingLobbies.splice(lobbyIndex, 1);
             }, 60000);
       }
+   }
+
+   end() {
+      clearInterval(this.#queueTimerId);
    }
 }
 

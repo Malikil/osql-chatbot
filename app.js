@@ -5,6 +5,7 @@ const client = new BanchoClient({
    apiKey: process.env.OSU_API_KEY
 });
 const commands = require("./commands");
+const matchmaker = require("./matching");
 client
    .connect()
    .then(() => {
@@ -22,3 +23,14 @@ client
       });
    })
    .catch(err => console.error(err));
+
+// Clean up when asked to exit
+process.on("SIGTERM", () => {
+   console.log("SIGTERM - Exit process...");
+   process.emit("terminateLobbies");
+   matchmaker.end();
+   client.removeAllListeners("PM");
+   client.disconnect();
+
+   process.exit();
+});

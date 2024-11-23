@@ -18,6 +18,7 @@ class LobbyRef {
    #players;
    /** @type {import("../types/lobby").LobbyState} */
    #lobbyState;
+   #interruptHandler;
 
    /**
     * @param {import("../types/matchmaking").MMPlayerObj[]} players
@@ -37,6 +38,12 @@ class LobbyRef {
          bans: [],
          picks: []
       };
+      this.#interruptHandler = function () {
+         this.#lobby.channel.sendMessage(
+            "SIGTERM - Process killed. All active lobbies have been abandoned."
+         );
+         this.closeLobby();
+      }.bind(this);
    }
 
    async startMatch() {
@@ -64,6 +71,9 @@ class LobbyRef {
       });
       // Invite players
       this.#players.forEach(p => this.#lobby.invitePlayer(`#${p.bancho.id}`));
+      // There must be a cleaner way to close lobbies when the program is trying to exit than
+      // watching for the event here
+      process.on("terminateLobbies", this.#interruptHandler);
    }
 
    async #playersJoined() {
@@ -270,6 +280,7 @@ class LobbyRef {
    }
 
    async closeLobby() {
+      process.off("terminateLobbies", this.#interruptHandler);
       this.#lobby.removeAllListeners();
       this.#lobby.channel.removeAllListeners();
       await this.#lobby
