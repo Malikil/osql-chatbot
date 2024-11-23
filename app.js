@@ -10,12 +10,12 @@ client
    .then(() => {
       console.log("Connected to bancho");
       client.on("PM", async msg => {
-         console.log(`${msg.user.ircUsername}: ${msg.message}`);
-         if (!msg.user.id) {
-            console.log("Fetch user info");
-            await msg.user.fetchFromAPI();
-         }
          if (msg.message.startsWith("!")) {
+            console.log(`${msg.user.ircUsername}: ${msg.message}`);
+            if (!msg.user.id) {
+               console.log("Fetch user info");
+               await msg.user.fetchFromAPI();
+            }
             const commandName = msg.message.slice(1).toLowerCase();
             (commands[commandName] || (() => {}))(msg);
          }
