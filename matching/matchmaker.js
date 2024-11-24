@@ -50,6 +50,7 @@ class Matchmaker {
 
             // Should the player be matched?
             if (withinRange(player, arr[i + 1])) lobbies.push([player, arr[i + 1]]);
+            // True means they are still waiting in queue
             else return true;
          })
          .map(p => ({
@@ -58,15 +59,31 @@ class Matchmaker {
             range: p.range + this.#options.searchRangeIncrement
          }));
       lobbies.forEach(lobby => {
-         this.#pendingLobbies.push({
+         const pending = {
             players: lobby.map(p => {
                p.player.bancho.sendMessage("Match found! Type !ready to accept");
                return {
                   player: p.player,
                   ready: false
                };
-            })
-         });
+            }),
+            waitTimer: setTimeout(() => {
+               pending.players.forEach(p => {
+                  if (p.ready) {
+                     p.player.bancho.sendMessage("Lobby expired. Rejoining queue");
+                     const prevTargetRange = lobby.find(qp => qp.player.bancho.id === p.player.bancho.id);
+                     if (!prevTargetRange) this.searchForMatch(p.player);
+                     else {
+                        this.#playerQueue.push(prevTargetRange);
+                        this.#playerQueue.sort((a, b) => a.rating - b.rating);
+                     }
+                  } else p.player.bancho.sendMessage("Lobby expired");
+               });
+               const pendIndex = this.#pendingLobbies.findIndex(l => l === pending);
+               this.#pendingLobbies.splice(pendIndex, 1);
+            }, 60000)
+         };
+         this.#pendingLobbies.push(pending);
       });
    }
 
@@ -75,6 +92,11 @@ class Matchmaker {
     */
    searchForMatch(player) {
       console.log(`Add ${player.bancho.username} to queue`);
+      if (this.#playerQueue.find(p => p.player.bancho.id === player.bancho.id)) {
+         console.log("Player already in queue");
+         player.bancho.sendMessage("You are already queued!");
+         return;
+      }
       this.#playerQueue.push({
          player,
          rating: player.rating.rating,
@@ -105,17 +127,9 @@ class Matchmaker {
       const lobbyPlayer = lobby.players.find(p => p.player.bancho.id === player.id);
       lobbyPlayer.ready = true;
       if (lobby.players.every(p => p.ready)) {
-         if (lobby.waitTimer) clearTimeout(lobby.waitTimer);
+         clearTimeout(lobby.waitTimer);
          this.#createLobby(lobby.players.map(p => p.player));
-      } else {
-         await player.sendMessage("Waiting for opponent");
-         if (!lobby.waitTimer)
-            lobby.waitTimer = setTimeout(() => {
-               lobby.players.forEach(p => p.player.bancho.sendMessage("Lobby expired"));
-               const lobbyIndex = this.#pendingLobbies.findIndex(l => l === lobby);
-               this.#pendingLobbies.splice(lobbyIndex, 1);
-            }, 60000);
-      }
+      } else player.sendMessage("Waiting for opponent");
    }
 
    end() {

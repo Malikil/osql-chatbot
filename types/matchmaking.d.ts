@@ -17,5 +17,5 @@ export interface PendingLobby {
       player: MMPlayerObj;
       ready: boolean;
    }[];
-   waitTimer?: number;
+   waitTimer: NodeJS.Timeout;
 }
