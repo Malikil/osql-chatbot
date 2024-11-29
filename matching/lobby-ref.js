@@ -85,9 +85,15 @@ class LobbyRef {
       this.#lobby.on("matchFinished", this.#songFinished.bind(this));
       this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
       // Send the intro message
-      const poolUrl = this.#players.map(p => p.bancho.id).join("/");
+      const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
+      const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
+      const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
+      const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
+      const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
+      const lUrl = encodeURIComponent(this.#lobby.name);
+      const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
       this.#lobby.channel.sendMessage(
-         `Mappool can be found here: [${process.env.INTERNAL_URL}/mappool/${poolUrl} Mappool]`
+         `Mappool can be found here: [${process.env.INTERNAL_URL}/mappool/lobby?${searchParams} Mappool]`
       );
       this.#lobby.channel.sendMessage(
          `First ban: ${this.#players[this.#lobbyState.nextPlayer].bancho.username}`
