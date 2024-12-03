@@ -4,12 +4,14 @@ const pvp = require("./pvp");
 const commands = {
    ping: msg => msg.user.sendMessage("Pong!"),
    commands: msg => msg.user.sendMessage(Object.keys(commands).join(", ")),
+   help: msg => msg.user.sendMessage(Object.keys(commands).join(", ")),
    pvp: pvp.queue,
    queue: pvp.queue,
    q: pvp.queue,
    unq: pvp.unqueue,
    unqueue: pvp.unqueue,
    ready: pvp.ready,
+   r: pvp.ready,
    pve: soloMode,
    solo: soloMode
 };
