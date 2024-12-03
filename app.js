@@ -12,13 +12,20 @@ client
       console.log("Connected to bancho");
       client.on("PM", async msg => {
          if (msg.message.startsWith("!")) {
+            // During development, ignore anyone not named Malikil :3
+            if (process.env.NODE_ENV === "development" && msg.user.ircUsername !== "Malikil")
+               return msg.user.sendMessage(
+                  "Bot is down for development - please check back later."
+               );
+
             console.log(`${msg.user.ircUsername}: ${msg.message}`);
             if (!msg.user.id) {
                console.log("Fetch user info");
                await msg.user.fetchFromAPI();
             }
-            const commandName = msg.message.slice(1).toLowerCase();
-            (commands[commandName] || (() => {}))(msg);
+            const commandArgs = msg.message.slice(1).split(" ");
+            const commandName = commandArgs.shift().toLowerCase();
+            (commands[commandName] || (() => {}))(msg, commandArgs);
          }
       });
    })
