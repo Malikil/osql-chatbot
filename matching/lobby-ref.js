@@ -9,6 +9,8 @@ const {
    BanchoLobbyPlayer
 } = require("bancho.js");
 
+const BO = 7;
+
 class LobbyRef {
    #bancho;
    /** @type {BanchoLobby} */
@@ -148,8 +150,8 @@ class LobbyRef {
          switch (command[0]) {
             case "!ban":
             case "!b":
-               if (this.#lobbyState.action !== "ban") break;
-               this.#banMap(command[1]);
+               if (this.#lobbyState.action === "ban") this.#banMap(command[1]);
+               else if (this.#lobbyState.action === "tbban") this.#tiebreakerBan(command[1]);
                break;
             case "!pick":
             case "!p":
@@ -177,7 +179,7 @@ class LobbyRef {
       if (this.#lobbyState.bans.includes(bannedMap))
          return this.#lobby.channel.sendMessage("That map is already banned");
       this.#lobbyState.bans.push(bannedMap);
-      if (this.#lobbyState.bans.length > 3) this.#lobbyState.action = "pick";
+      if (this.#lobbyState.bans.length >= 4) this.#lobbyState.action = "pick";
       this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       this.#lobby.channel.sendMessage(
          `Banned map: ${bannedMap.artist} - ${bannedMap.title} [${bannedMap.version}]`
@@ -214,6 +216,39 @@ class LobbyRef {
       this.#lobbyState.picks.selectedModpool = mod;
    }
 
+   /**
+    * @param {string} map
+    */
+   async #tiebreakerBan(map) {
+      const mod = map.slice(0, 2).toLowerCase();
+      const mapNo = parseInt(map[2]) - 1;
+      if (
+         !(mod in this.#mappool) ||
+         isNaN(mapNo) ||
+         mapNo < 0 ||
+         mapNo >= this.#mappool[mod].length
+      )
+         return this.#lobby.channel.sendMessage("Unknown map");
+      const bannedMap = this.#mappool[mod][mapNo];
+      if (this.#lobbyState.bans.includes(bannedMap))
+         return this.#lobby.channel.sendMessage("That map is already banned");
+      if (this.#lobbyState.picks.includes(bannedMap))
+         return this.#lobby.channel.sendMessage("That map has been picked already");
+      this.#lobbyState.bans.push(bannedMap);
+      if (this.#lobbyState.bans.length >= 6) {
+         this.#lobbyState.action = "pick";
+         this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
+      }
+      this.#lobby.channel.sendMessage(
+         `Banned map: ${bannedMap.artist} - ${bannedMap.title} [${bannedMap.version}]`
+      );
+      this.#lobby.channel.sendMessage(
+         `Next ${this.#lobbyState.action}: ${
+            this.#players[this.#lobbyState.nextPlayer].bancho.username
+         }`
+      );
+   }
+
    async #playersReady() {
       if (this.#lobbyState.picks.selectedModpool === "fm") {
          // Make sure both players have mods enabled
@@ -242,20 +277,30 @@ class LobbyRef {
       console.log(scores);
       // Seems to be sorted in descending order
       const winnerIndex = this.#players.findIndex(p => p.bancho.id === scores[0].player.user.id);
-      if (++this.#lobbyState.scores[winnerIndex] >= 4) return this.#matchCompleted();
+      if (++this.#lobbyState.scores[winnerIndex] > BO / 2) return this.#matchCompleted();
       // Track what maps are played so they can't be picked twice
       this.#lobbyState.picks.push(this.#lobbyState.picks.nextPick);
 
       // Update the player's states
-      this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       this.#lobby.channel.sendMessage(
          `${this.#players[0].bancho.username} ${this.#lobbyState.scores[0]} - ${
             this.#lobbyState.scores[1]
          } ${this.#players[1].bancho.username}`
       );
-      this.#lobby.channel.sendMessage(
-         `Next pick: ${this.#players[this.#lobbyState.nextPlayer].bancho.username}`
-      );
+      if (this.#lobbyState.picks.length < BO - 1) {
+         this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
+         this.#lobby.channel.sendMessage(
+            `Next pick: ${this.#players[this.#lobbyState.nextPlayer].bancho.username}`
+         );
+      } else {
+         // Set up tiebreaker
+         this.#lobbyState.action = "tbban";
+         this.#lobby.channel.sendMessage(
+            `Tiebreaker! ${
+               this.#players[this.#lobbyState.nextPlayer].bancho.username
+            } please ban two maps`
+         );
+      }
    }
 
    #matchCompleted() {

@@ -31,7 +31,7 @@ export interface Mappool {
 
 export interface LobbyState {
    nextPlayer: number;
-   action: 'pick' | 'ban';
+   action: "pick" | "ban" | "tbban";
    scores: number[];
    bans: MappoolMap[];
    picks: MappoolMap[];
