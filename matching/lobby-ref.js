@@ -155,8 +155,8 @@ class LobbyRef {
                break;
             case "!pick":
             case "!p":
-               if (this.#lobbyState.action !== "pick") break;
-               this.#pickMap(command[1]);
+               if (this.#lobbyState.action === "pick" || this.#lobbyState.action === "tb")
+                  this.#pickMap(command[1]);
                break;
          }
       }
@@ -236,7 +236,7 @@ class LobbyRef {
          return this.#lobby.channel.sendMessage("That map has been picked already");
       this.#lobbyState.bans.push(bannedMap);
       if (this.#lobbyState.bans.length >= 6) {
-         this.#lobbyState.action = "pick";
+         this.#lobbyState.action = "tb";
          this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       }
       this.#lobby.channel.sendMessage(
@@ -250,7 +250,16 @@ class LobbyRef {
    }
 
    async #playersReady() {
-      if (this.#lobbyState.picks.selectedModpool === "fm") {
+      if (this.#lobbyState.action === "tb") {
+         await this.#lobby.updateSettings();
+         if (
+            this.#lobby.slots.some(player => {
+               if (!player) return;
+               return !player.mods.includes(BanchoMods.NoFail);
+            })
+         )
+            return this.#lobby.channel.sendMessage("NoFail is required.");
+      } else if (this.#lobbyState.picks.selectedModpool === "fm") {
          // Make sure both players have mods enabled
          await this.#lobby.updateSettings();
          if (
