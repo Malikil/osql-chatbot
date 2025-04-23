@@ -27,12 +27,14 @@ class LobbyRef {
     * @param {BanchoClient} bancho
     */
    constructor(players, bancho) {
+      console.log("Set up ref instance");
       this.#players = players;
       this.#bancho = bancho;
       const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
       fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}`)
          .then(data => data.json())
-         .then(pool => (this.#mappool = pool));
+         .then(pool => (this.#mappool = pool))
+         .then(() => console.log(this.#mappool));
       this.#lobbyState = {
          nextPlayer: 0,
          action: "ban",
@@ -51,7 +53,7 @@ class LobbyRef {
    async startMatch() {
       console.log("Create lobby");
       const lobbyChannel = await this.#bancho.createLobby(
-         `PackChal: ${this.#players[0].bancho.username} vs ${
+         `MPSQ: ${this.#players[0].bancho.username} vs ${
             this.#players[1].bancho.username
          } - ${Date.now()}`
       );
@@ -86,6 +88,21 @@ class LobbyRef {
       this.#lobby.on("allPlayersReady", this.#playersReady.bind(this));
       this.#lobby.on("matchFinished", this.#songFinished.bind(this));
       this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
+      if (!this.#mappool) {
+         this.#lobby.channel.sendMessage("Pool failed to load, attempting refresh");
+         const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
+         try {
+            await fetch(`${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}`)
+               .then(data => data.json())
+               .then(pool => (this.#mappool = pool))
+               .then(() => console.log(this.#mappool));
+         } catch (err) {
+            this.#lobby.channel.sendMessage("Fetch failed, lobby will close");
+            console.warn(err);
+            setTimeout(this.closeLobby, 3000);
+            return;
+         }
+      }
       // Send the intro message
       const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
       const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
