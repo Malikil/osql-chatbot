@@ -34,7 +34,8 @@ class LobbyRef {
       fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}`)
          .then(data => data.json())
          .then(pool => (this.#mappool = pool))
-         .then(() => console.log(this.#mappool));
+         .then(() => console.log(this.#mappool))
+         .catch(() => console.warn("Failed to fetch mappool"));
       this.#lobbyState = {
          nextPlayer: 0,
          action: "ban",
@@ -112,7 +113,7 @@ class LobbyRef {
       const lUrl = encodeURIComponent(this.#lobby.name);
       const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
       this.#lobby.channel.sendMessage(
-         `Mappool can be found here: [${process.env.INTERNAL_URL}/mappool/lobby?${searchParams} Mappool]`
+         `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
       );
       this.#lobby.channel.sendMessage(
          `First ban: ${this.#players[this.#lobbyState.nextPlayer].bancho.username}`
@@ -120,13 +121,11 @@ class LobbyRef {
    }
 
    /**
-    * @param {object} arg0
-    * @param {BanchoLobbyPlayer} arg0.player
+    * @param {BanchoLobbyPlayer} player
     */
-   async #playerLeft({ player }) {
+   async #playerLeft(player) {
       // If there are no players left, just close the lobby
       if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
-
       this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
       this.#lobby.on("timerEnded", () => {
          this.#lobby.channel.sendMessage("Match has been abandoned!");
@@ -142,7 +141,7 @@ class LobbyRef {
                () => this.#lobby.channel.sendMessage("Match results submitted to server"),
                err => console.error(err)
             )
-            .then(() => setTimeout(this.closeLobby.bind(this), 45000));
+            .then(() => setTimeout(this.closeLobby.bind(this), 30000));
       });
       this.#lobby.on("playerJoined", ({ player: joiner }) => {
          if (player.user.id === joiner.user.id) {
@@ -353,20 +352,26 @@ class LobbyRef {
             () => this.#lobby.channel.sendMessage("Match results submitted to server"),
             err => console.error(err)
          )
-         .then(() => setTimeout(this.closeLobby.bind(this), 45000));
+         .then(() => setTimeout(this.closeLobby.bind(this), 30000));
    }
 
    async closeLobby() {
       process.off("terminateLobbies", this.#interruptHandler);
-      this.#lobby.removeAllListeners();
-      this.#lobby.channel.removeAllListeners();
-      await this.#lobby
-         .closeLobby()
-         .catch(err => console.warn(err))
-         .then(() => (this.#lobby = null));
-      this.#bancho = null;
-      this.#mappool = null;
-      this.#players = null;
+      try {
+         this.#lobby.removeAllListeners();
+         this.#lobby.channel.removeAllListeners();
+         await this.#lobby
+            .closeLobby()
+            .catch(err => console.warn(err))
+            .then(() => (this.#lobby = null));
+      } catch (err) {
+         console.warn("Couldn't clean up properly");
+         console.warn(err);
+      } finally {
+         this.#bancho = null;
+         this.#mappool = null;
+         this.#players = null;
+      }
    }
 }
 
