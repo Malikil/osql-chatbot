@@ -1,8 +1,6 @@
-const soloMode = require("./pve");
 const pvp = require("./pvp");
 
 const commands = {
-   ping: msg => msg.user.sendMessage("Pong!"),
    commands: msg => msg.user.sendMessage(Object.keys(commands).join(", ")),
    help: msg => msg.user.sendMessage(Object.keys(commands).join(", ")),
    pvp: pvp.queue,
@@ -11,8 +9,6 @@ const commands = {
    unq: pvp.unqueue,
    unqueue: pvp.unqueue,
    ready: pvp.ready,
-   r: pvp.ready,
-   pve: soloMode,
-   solo: soloMode
+   r: pvp.ready
 };
 module.exports = commands;

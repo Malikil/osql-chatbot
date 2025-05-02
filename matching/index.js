@@ -6,7 +6,11 @@ const matchmaker = new Matchmaker(
       console.log("Create match with players", p);
       new LobbyRef(p, p[0].bancho.banchojs).startMatch();
    },
-   { searchRangeIncrement: 1 / 6 }
+   {
+      searchRangeIncrement: p => {
+         p.range + p.player.rating.rd / 100;
+      }
+   }
 );
 
 module.exports = matchmaker;
