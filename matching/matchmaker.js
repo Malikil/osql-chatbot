@@ -123,7 +123,10 @@ class Matchmaker {
    unqueue(player) {
       console.log(`Remove ${player.username} from queue`);
       const playerIndex = this.#playerQueue.findIndex(p => p.player.bancho.id === player.id);
-      if (playerIndex >= 0) this.#playerQueue.splice(playerIndex, 1);
+      if (playerIndex >= 0) {
+         this.#playerQueue.splice(playerIndex, 1);
+         player.sendMessage("Removed from queue");
+      }
    }
 
    /**
