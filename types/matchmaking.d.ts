@@ -22,5 +22,4 @@ export interface PendingLobby {
 
 export interface MatchmakerEvents {
    match: [players: MMPlayerObj[]];
-   error: [error: Error];
 }

@@ -8,10 +8,14 @@ const {
    BanchoMods,
    BanchoLobbyPlayer
 } = require("bancho.js");
+const EventEmitter = require("node:events");
 
 const BO = 7;
 
-class LobbyRef {
+/**
+ * @extends {EventEmitter<import("../types/lobby").LobbyEvents>}
+ */
+class LobbyRef extends EventEmitter {
    #bancho;
    /** @type {BanchoLobby} */
    #lobby;
@@ -78,7 +82,7 @@ class LobbyRef {
       this.#players.forEach(p => this.#lobby.invitePlayer(`#${p.bancho.id}`));
       // There must be a cleaner way to close lobbies when the program is trying to exit than
       // watching for the event here
-      process.on("terminateLobbies", this.#interruptHandler);
+      process.on("SIGTERM", this.#interruptHandler);
    }
 
    async #playersJoined() {
@@ -128,7 +132,9 @@ class LobbyRef {
       if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
       this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
       this.#lobby.on("timerEnded", () => {
+         this.#lobby.removeAllListeners("playerJoined");
          this.#lobby.channel.sendMessage("Match has been abandoned!");
+         this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
          fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
             method: "POST",
             body: JSON.stringify({
@@ -141,7 +147,7 @@ class LobbyRef {
                () => this.#lobby.channel.sendMessage("Match results submitted to server"),
                err => console.error(err)
             )
-            .then(() => setTimeout(this.closeLobby.bind(this), 30000));
+            .then(() => setTimeout(this.closeLobby.bind(this), 10000));
       });
       this.#lobby.on("playerJoined", ({ player: joiner }) => {
          if (player.user.id === joiner.user.id) {
@@ -343,6 +349,7 @@ class LobbyRef {
                : this.#players[1].bancho.username
          } won the match.`
       );
+      this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
       fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "POST",
          body: JSON.stringify({ mp: this.#lobby.getHistoryUrl() }),
@@ -356,7 +363,7 @@ class LobbyRef {
    }
 
    async closeLobby() {
-      process.off("terminateLobbies", this.#interruptHandler);
+      process.off("SIGTERM", this.#interruptHandler);
       try {
          this.#lobby.removeAllListeners();
          this.#lobby.channel.removeAllListeners();
@@ -372,6 +379,20 @@ class LobbyRef {
          this.#mappool = null;
          this.#players = null;
       }
+   }
+
+   /**
+    * @param {import("../types/matchmaking").MMPlayerObj} player
+    */
+   hasPlayer(player) {
+      return this.#players.includes(player);
+   }
+
+   /**
+    * @param {import("../types/matchmaking").MMPlayerObj} player
+    */
+   invite(player) {
+      this.#lobby.invitePlayer(`#${player.bancho.id}`);
    }
 }
 

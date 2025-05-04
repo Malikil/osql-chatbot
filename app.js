@@ -1,6 +1,6 @@
 const { BanchoClient } = require("bancho.js");
 const Matchmaker = require("./matching/matchmaker");
-const LobbyRef = require("./matching/lobby-ref");
+const LobbyManager = require("./matching/lobby-manager");
 
 const client = new BanchoClient({
    username: process.env.OSU_IRC_USERNAME,
@@ -12,6 +12,8 @@ const matchmaker = new Matchmaker({
       p.range + p.player.rating.rd / 100;
    }
 });
+const lobbyManager = new LobbyManager(client);
+
 const commands = require("./commands").init(matchmaker);
 
 client
@@ -32,15 +34,14 @@ client
       });
    })
    .catch(err => console.error(err));
-matchmaker.on('match', p => {
+matchmaker.on("match", p => {
    console.log("Create match with players", p);
-   new LobbyRef(p, p[0].bancho.banchojs).startMatch();
-})
+   lobbyManager.createLobby(p);
+});
 
 // Clean up when asked to exit
 process.on("SIGTERM", () => {
    console.log("SIGTERM - Exit process...");
-   process.emit("terminateLobbies");
    matchmaker.end();
    client.removeAllListeners("PM");
    client.disconnect();
