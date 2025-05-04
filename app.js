@@ -8,13 +8,11 @@ const client = new BanchoClient({
    apiKey: process.env.OSU_API_KEY
 });
 const matchmaker = new Matchmaker({
-   searchRangeIncrement: p => {
-      p.range + p.player.rating.rd / 100;
-   }
+   searchRangeIncrement: p => p.range + p.player.rating.rd / 100
 });
 const lobbyManager = new LobbyManager(client);
 
-const commands = require("./commands").init(matchmaker);
+const commands = require("./commands").init(matchmaker, lobbyManager);
 
 client
    .connect()
@@ -36,7 +34,7 @@ client
    .catch(err => console.error(err));
 matchmaker.on("match", p => {
    console.log("Create match with players", p);
-   lobbyManager.createLobby(p);
+   lobbyManager.createLobby(p.sort((a, b) => a.rating.rating - b.rating.rating));
 });
 
 // Clean up when asked to exit

@@ -6,7 +6,8 @@ const {
    BanchoLobbyPlayerScore,
    BanchoMessage,
    BanchoMods,
-   BanchoLobbyPlayer
+   BanchoLobbyPlayer,
+   BanchoUser
 } = require("bancho.js");
 const EventEmitter = require("node:events");
 
@@ -31,6 +32,7 @@ class LobbyRef extends EventEmitter {
     * @param {BanchoClient} bancho
     */
    constructor(players, bancho) {
+      super();
       console.log("Set up ref instance");
       this.#players = players;
       this.#bancho = bancho;
@@ -47,12 +49,13 @@ class LobbyRef extends EventEmitter {
          bans: [],
          picks: []
       };
-      this.#interruptHandler = function () {
+      this.#interruptHandler = (() => {
          this.#lobby.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
          );
+         this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
          this.closeLobby();
-      }.bind(this);
+      }).bind(this);
    }
 
    async startMatch() {
@@ -162,12 +165,31 @@ class LobbyRef extends EventEmitter {
     * @param {BanchoMessage} msg
     */
    #handleLobbyCommand(msg) {
-      if (
-         msg.message.startsWith("!") &&
-         msg.user.id === this.#players[this.#lobbyState.nextPlayer].bancho.id
-      ) {
+      if (msg.message.startsWith("!")) {
          const command = msg.message.split(" ");
-         if (command.length < 2) return;
+         if (command[0] === "!lobby") {
+            const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
+            const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
+            const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
+            const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
+            const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
+            const lUrl = encodeURIComponent(this.#lobby.name);
+            const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
+            this.#lobby.channel.sendMessage(
+               `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
+            );
+            this.#lobby.channel.sendMessage(
+               `Next ${this.#lobbyState.action}: ${
+                  this.#players[this.#lobbyState.nextPlayer].bancho.username
+               }`
+            );
+            return;
+         }
+         if (
+            command.length < 2 ||
+            msg.user.id !== this.#players[this.#lobbyState.nextPlayer].bancho.id
+         )
+            return;
          console.log(command);
          switch (command[0]) {
             case "!ban":
@@ -382,17 +404,17 @@ class LobbyRef extends EventEmitter {
    }
 
    /**
-    * @param {import("../types/matchmaking").MMPlayerObj} player
+    * @param {BanchoUser} player
     */
    hasPlayer(player) {
-      return this.#players.includes(player);
+      return !!this.#players.find(p => p.bancho.id === player.id);
    }
 
    /**
-    * @param {import("../types/matchmaking").MMPlayerObj} player
+    * @param {BanchoUser} player
     */
    invite(player) {
-      this.#lobby.invitePlayer(`#${player.bancho.id}`);
+      this.#lobby.invitePlayer(`#${player.id}`);
    }
 }
 

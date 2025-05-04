@@ -29,6 +29,7 @@ class Matchmaker extends EventEmitter {
     * by a flat amount. Or pass a function which returns the new search range value.
     */
    constructor(options = {}) {
+      super();
       this.#playerQueue = [];
       this.#pendingLobbies = [];
       this.#options = {

@@ -20,7 +20,7 @@ class LobbyManager {
    }
 
    createLobby(players) {
-      console.log("Create match with players", p);
+      console.log("Create match with players", players);
       const lobby = new LobbyRef(players, this.#bancho);
       lobby.startMatch();
       this.#activeLobbies.push(lobby);
