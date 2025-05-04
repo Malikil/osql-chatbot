@@ -8,7 +8,8 @@ const client = new BanchoClient({
    apiKey: process.env.OSU_API_KEY
 });
 const matchmaker = new Matchmaker({
-   searchRangeIncrement: p => p.range + p.player.rating.rd / 100
+   searchRangeIncrement: p =>
+      Math.sqrt(p.range * p.range + (p.player.rating.rd * p.player.rating.rd) / 5)
 });
 const lobbyManager = new LobbyManager(client);
 
