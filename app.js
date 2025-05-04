@@ -1,7 +1,6 @@
 const { BanchoClient } = require("bancho.js");
 const Matchmaker = require("./matching/matchmaker");
 const LobbyRef = require("./matching/lobby-ref");
-const commands = require("./commands");
 
 const client = new BanchoClient({
    username: process.env.OSU_IRC_USERNAME,
@@ -13,6 +12,7 @@ const matchmaker = new Matchmaker({
       p.range + p.player.rating.rd / 100;
    }
 });
+const commands = require("./commands").init(matchmaker);
 
 client
    .connect()
@@ -32,7 +32,7 @@ client
       });
    })
    .catch(err => console.error(err));
-matchmaker.on('match', players => {
+matchmaker.on('match', p => {
    console.log("Create match with players", p);
    new LobbyRef(p, p[0].bancho.banchojs).startMatch();
 })

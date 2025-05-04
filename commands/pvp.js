@@ -1,19 +1,21 @@
 const { PrivateMessage } = require("bancho.js");
-const matchmaker = require("../matching");
 const db = require("../db/connection");
+const Matchmaker = require("../matching/matchmaker");
 
 /**
  * @param {PrivateMessage} msg
+ * @param {Matchmaker} matchmaker
  */
-async function unqueue(msg) {
+async function unqueue(msg, matchmaker) {
    matchmaker.unqueue(msg.user);
    msg.user.sendMessage("Removed from queue");
 }
 
 /**
  * @param {PrivateMessage} msg
+ * @param {Matchmaker} matchmaker
  */
-async function queue(msg) {
+async function queue(msg, matchmaker) {
    console.log("Pvp match request");
    const player = await db.collection("players").findOne({ osuid: msg.user.id });
    if (!player)
@@ -29,8 +31,9 @@ async function queue(msg) {
 
 /**
  * @param {PrivateMessage} msg
+ * @param {Matchmaker} matchmaker
  */
-function ready(msg) {
+function ready(msg, matchmaker) {
    matchmaker.playerReady(msg.user);
 }
 
