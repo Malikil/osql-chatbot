@@ -19,3 +19,8 @@ export interface PendingLobby {
    }[];
    waitTimer: NodeJS.Timeout;
 }
+
+export interface MatchmakerEvents {
+   match: [players: MMPlayerObj[]];
+   error: [error: Error];
+}

@@ -1,11 +1,19 @@
 const { BanchoClient } = require("bancho.js");
+const Matchmaker = require("./matching/matchmaker");
+const LobbyRef = require("./matching/lobby-ref");
+const commands = require("./commands");
+
 const client = new BanchoClient({
    username: process.env.OSU_IRC_USERNAME,
    password: process.env.OSU_IRC_PASSWORD,
    apiKey: process.env.OSU_API_KEY
 });
-const commands = require("./commands");
-const matchmaker = require("./matching");
+const matchmaker = new Matchmaker({
+   searchRangeIncrement: p => {
+      p.range + p.player.rating.rd / 100;
+   }
+});
+
 client
    .connect()
    .then(() => {
@@ -24,6 +32,10 @@ client
       });
    })
    .catch(err => console.error(err));
+matchmaker.on('match', players => {
+   console.log("Create match with players", p);
+   new LobbyRef(p, p[0].bancho.banchojs).startMatch();
+})
 
 // Clean up when asked to exit
 process.on("SIGTERM", () => {
