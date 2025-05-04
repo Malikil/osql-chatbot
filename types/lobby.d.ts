@@ -36,3 +36,7 @@ export interface LobbyState {
    bans: MappoolMap[];
    picks: MappoolMap[];
 }
+
+export interface LobbyEvents {
+   finished: [mp: string, state: LobbyState];
+}

@@ -1,4 +1,5 @@
 const { BanchoUser } = require("bancho.js");
+const EventEmitter = require('node:events');
 
 /**
  * @param {import("../types/matchmaking").QueuedPlayer} p1
@@ -9,24 +10,26 @@ const withinRange = (p1, p2 = {}) => {
    return p1.range > diff && p2.range > diff;
 };
 
-class Matchmaker {
+/**
+ * @extends {EventEmitter<import("../types/matchmaking").MatchmakerEvents>}
+ */
+class Matchmaker extends EventEmitter {
    /** @type {import("../types/matchmaking").QueuedPlayer[]} */
    #playerQueue;
    #options;
    #queueTimerId;
-   #createLobby;
    /** @type {import("../types/matchmaking").PendingLobby[]} */
    #pendingLobbies;
 
    /**
-    * @param {function(import("../types/matchmaking").MMPlayerObj[])} createLobby
     * @param {object} options
     * @param {number} options.searchInterval How often to attempt to create matches
     * @param {number | function(import("../types/matchmaking").QueuedPlayer): number} options.searchRangeIncrement
     * How much should the rating range increase per matching attempt. A number argument will increase
     * by a flat amount. Or pass a function which returns the new search range value.
     */
-   constructor(createLobby, options = {}) {
+   constructor(options = {}) {
+      super();
       this.#playerQueue = [];
       this.#pendingLobbies = [];
       this.#options = {
@@ -38,7 +41,6 @@ class Matchmaker {
          this.#attemptCreateMatches.bind(this),
          this.#options.searchInterval
       );
-      this.#createLobby = createLobby;
    }
 
    #attemptCreateMatches() {
@@ -142,7 +144,7 @@ class Matchmaker {
       lobbyPlayer.ready = true;
       if (lobby.players.every(p => p.ready)) {
          clearTimeout(lobby.waitTimer);
-         this.#createLobby(lobby.players.map(p => p.player));
+         this.emit('match', lobby.players.map(p => p.player));
       } else player.sendMessage("Waiting for opponent");
    }
 

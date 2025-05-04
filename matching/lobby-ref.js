@@ -6,12 +6,17 @@ const {
    BanchoLobbyPlayerScore,
    BanchoMessage,
    BanchoMods,
-   BanchoLobbyPlayer
+   BanchoLobbyPlayer,
+   BanchoUser
 } = require("bancho.js");
+const EventEmitter = require("node:events");
 
 const BO = 7;
 
-class LobbyRef {
+/**
+ * @extends {EventEmitter<import("../types/lobby").LobbyEvents>}
+ */
+class LobbyRef extends EventEmitter {
    #bancho;
    /** @type {BanchoLobby} */
    #lobby;
@@ -27,6 +32,7 @@ class LobbyRef {
     * @param {BanchoClient} bancho
     */
    constructor(players, bancho) {
+      super();
       console.log("Set up ref instance");
       this.#players = players;
       this.#bancho = bancho;
@@ -43,12 +49,13 @@ class LobbyRef {
          bans: [],
          picks: []
       };
-      this.#interruptHandler = function () {
+      this.#interruptHandler = (() => {
          this.#lobby.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
          );
+         this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
          this.closeLobby();
-      }.bind(this);
+      }).bind(this);
    }
 
    async startMatch() {
@@ -78,7 +85,7 @@ class LobbyRef {
       this.#players.forEach(p => this.#lobby.invitePlayer(`#${p.bancho.id}`));
       // There must be a cleaner way to close lobbies when the program is trying to exit than
       // watching for the event here
-      process.on("terminateLobbies", this.#interruptHandler);
+      process.on("SIGTERM", this.#interruptHandler);
    }
 
    async #playersJoined() {
@@ -128,7 +135,9 @@ class LobbyRef {
       if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
       this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
       this.#lobby.on("timerEnded", () => {
+         this.#lobby.removeAllListeners("playerJoined");
          this.#lobby.channel.sendMessage("Match has been abandoned!");
+         this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
          fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
             method: "POST",
             body: JSON.stringify({
@@ -141,7 +150,7 @@ class LobbyRef {
                () => this.#lobby.channel.sendMessage("Match results submitted to server"),
                err => console.error(err)
             )
-            .then(() => setTimeout(this.closeLobby.bind(this), 30000));
+            .then(() => setTimeout(this.closeLobby.bind(this), 10000));
       });
       this.#lobby.on("playerJoined", ({ player: joiner }) => {
          if (player.user.id === joiner.user.id) {
@@ -156,12 +165,31 @@ class LobbyRef {
     * @param {BanchoMessage} msg
     */
    #handleLobbyCommand(msg) {
-      if (
-         msg.message.startsWith("!") &&
-         msg.user.id === this.#players[this.#lobbyState.nextPlayer].bancho.id
-      ) {
+      if (msg.message.startsWith("!")) {
          const command = msg.message.split(" ");
-         if (command.length < 2) return;
+         if (command[0] === "!lobby") {
+            const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
+            const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
+            const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
+            const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
+            const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
+            const lUrl = encodeURIComponent(this.#lobby.name);
+            const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
+            this.#lobby.channel.sendMessage(
+               `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
+            );
+            this.#lobby.channel.sendMessage(
+               `Next ${this.#lobbyState.action}: ${
+                  this.#players[this.#lobbyState.nextPlayer].bancho.username
+               }`
+            );
+            return;
+         }
+         if (
+            command.length < 2 ||
+            msg.user.id !== this.#players[this.#lobbyState.nextPlayer].bancho.id
+         )
+            return;
          console.log(command);
          switch (command[0]) {
             case "!ban":
@@ -343,6 +371,7 @@ class LobbyRef {
                : this.#players[1].bancho.username
          } won the match.`
       );
+      this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
       fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "POST",
          body: JSON.stringify({ mp: this.#lobby.getHistoryUrl() }),
@@ -356,7 +385,7 @@ class LobbyRef {
    }
 
    async closeLobby() {
-      process.off("terminateLobbies", this.#interruptHandler);
+      process.off("SIGTERM", this.#interruptHandler);
       try {
          this.#lobby.removeAllListeners();
          this.#lobby.channel.removeAllListeners();
@@ -372,6 +401,20 @@ class LobbyRef {
          this.#mappool = null;
          this.#players = null;
       }
+   }
+
+   /**
+    * @param {BanchoUser} player
+    */
+   hasPlayer(player) {
+      return !!this.#players.find(p => p.bancho.id === player.id);
+   }
+
+   /**
+    * @param {BanchoUser} player
+    */
+   invite(player) {
+      this.#lobby.invitePlayer(`#${player.id}`);
    }
 }
 
