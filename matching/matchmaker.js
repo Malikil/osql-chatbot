@@ -1,5 +1,5 @@
 const { BanchoUser } = require("bancho.js");
-const EventEmitter = require('node:events');
+const EventEmitter = require("node:events");
 
 /**
  * @param {import("../types/matchmaking").QueuedPlayer} p1
@@ -87,7 +87,9 @@ class Matchmaker extends EventEmitter {
                      );
                      if (!prevTargetRange) this.searchForMatch(p.player);
                      else {
+                        console.log(`Add ${prevTargetRange.player.bancho.username} to queue`);
                         this.#playerQueue.push(prevTargetRange);
+                        console.log(this.#playerQueue);
                         //this.#playerQueue.sort((a, b) => a.rating - b.rating);
                      }
                   } else p.player.bancho.sendMessage("Lobby expired");
@@ -135,16 +137,21 @@ class Matchmaker extends EventEmitter {
     * @param {BanchoUser} player
     */
    async playerReady(player) {
-      const lobby = this.#pendingLobbies.find(l =>
+      const lobbyIndex = this.#pendingLobbies.findIndex(l =>
          l.players.find(p => p.player.bancho.id === player.id)
       );
-      if (!lobby) return player.sendMessage("No lobby found");
+      if (lobbyIndex < 0) return player.sendMessage("No lobby found");
+      const lobby = this.#pendingLobbies[lobbyIndex];
 
       const lobbyPlayer = lobby.players.find(p => p.player.bancho.id === player.id);
       lobbyPlayer.ready = true;
       if (lobby.players.every(p => p.ready)) {
          clearTimeout(lobby.waitTimer);
-         this.emit('match', lobby.players.map(p => p.player));
+         this.#pendingLobbies.splice(lobbyIndex, 1);
+         this.emit(
+            "match",
+            lobby.players.map(p => p.player)
+         );
       } else player.sendMessage("Waiting for opponent");
    }
 

@@ -179,6 +179,11 @@ class LobbyRef extends EventEmitter {
                `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
             );
             this.#lobby.channel.sendMessage(
+               `${this.#players[0].bancho.username} ${this.#lobbyState.scores[0]} - ${
+                  this.#lobbyState.scores[1]
+               } ${this.#players[1].bancho.username}`
+            );
+            this.#lobby.channel.sendMessage(
                `Next ${this.#lobbyState.action}: ${
                   this.#players[this.#lobbyState.nextPlayer].bancho.username
                }`
@@ -294,6 +299,10 @@ class LobbyRef extends EventEmitter {
    }
 
    async #playersReady() {
+      // Make sure the players haven't readied again after finishing a song
+      if (this.#lobbyState.picks.find(m => m.id === this.#lobby.beatmapId))
+         return;
+      
       if (this.#lobbyState.action === "tb") {
          await this.#lobby.updateSettings();
          if (
