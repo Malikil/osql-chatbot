@@ -336,7 +336,7 @@ class LobbyRef extends EventEmitter {
     * @param {BanchoLobbyPlayerScore[]} scores
     */
    #songFinished(scores) {
-      console.log(scores);
+      console.log(scores.map(s => ({ player: s.player.user.username, score: s.score })));
       // Seems to be sorted in descending order
       const winnerIndex = this.#players.findIndex(p => p.bancho.id === scores[0].player.user.id);
       if (++this.#lobbyState.scores[winnerIndex] > BO / 2) return this.#matchCompleted();
@@ -366,6 +366,7 @@ class LobbyRef extends EventEmitter {
    }
 
    #matchCompleted() {
+      console.log('Match complete');
       this.#lobby.removeAllListeners();
       this.#lobby.channel.removeAllListeners();
       this.#lobby.channel.sendMessage(
@@ -380,7 +381,6 @@ class LobbyRef extends EventEmitter {
                : this.#players[1].bancho.username
          } won the match.`
       );
-      this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
       fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "POST",
          body: JSON.stringify({ mp: this.#lobby.getHistoryUrl() }),
@@ -391,6 +391,7 @@ class LobbyRef extends EventEmitter {
             err => console.error(err)
          )
          .then(() => setTimeout(this.closeLobby.bind(this), 30000));
+      this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
    }
 
    async closeLobby() {
