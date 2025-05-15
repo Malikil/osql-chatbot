@@ -29,8 +29,7 @@ async function queue(msg, matchmaker) {
          method: "POST",
          body: JSON.stringify({
             osuid: msg.user.id,
-            osuname: msg.user.username,
-            ppRaw: msg.user.ppRaw
+            osuname: msg.user.username
          }),
          headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
       }).then(
@@ -45,9 +44,20 @@ async function queue(msg, matchmaker) {
 
       if (!player) return;
    }
+   if (!player.osu.pvp)
+      player.osu.pvp = await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+         method: "PUT",
+         body: JSON.stringify({
+            id: msg.user.id,
+            pp_raw: msg.user.ppRaw,
+            mode: "osu"
+         }),
+         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
+      });
+
    matchmaker.searchForMatch({
       bancho: msg.user,
-      rating: player.pvp
+      rating: player.osu.pvp
    });
    msg.user.sendMessage("Searching for pvp match");
 }
