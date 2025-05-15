@@ -27,9 +27,9 @@ class LobbyManager {
       const finished = () => {
          const i = this.#activeLobbies.findIndex(l => l === lobby);
          this.#activeLobbies.splice(i, 1);
-         lobby.off("finished", finished);
+         lobby.off("closed", finished);
       };
-      lobby.on("finished", finished);
+      lobby.on("closed", finished);
    }
 
    /**

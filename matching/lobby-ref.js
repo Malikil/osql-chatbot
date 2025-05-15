@@ -53,7 +53,6 @@ class LobbyRef extends EventEmitter {
          this.#lobby.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
          );
-         this.emit("finished", this.#lobby.getHistoryUrl(), this.#lobbyState);
          this.closeLobby();
       }).bind(this);
    }
@@ -134,6 +133,8 @@ class LobbyRef extends EventEmitter {
       // If there are no players left, just close the lobby
       if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
       this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
+      // Stop trying to start the match
+      this.#lobby.off('allPlayersReady', this.#playersReady);
       this.#lobby.on("timerEnded", () => {
          this.#lobby.removeAllListeners("playerJoined");
          this.#lobby.channel.sendMessage("Match has been abandoned!");
@@ -157,6 +158,7 @@ class LobbyRef extends EventEmitter {
             this.#lobby.removeAllListeners("timerEnded");
             this.#lobby.abortTimer();
             this.#lobby.removeAllListeners("playerJoined");
+            this.#lobby.on('allPlayersReady', this.#playersReady);
          }
       });
    }
@@ -167,7 +169,7 @@ class LobbyRef extends EventEmitter {
    #handleLobbyCommand(msg) {
       if (msg.message.startsWith("!")) {
          const command = msg.message.split(" ");
-         if (command[0] === "!lobby") {
+         if (['!lobby', '!match', '!info'].includes(command[0])) {
             const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
             const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
             const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
@@ -410,6 +412,7 @@ class LobbyRef extends EventEmitter {
          this.#bancho = null;
          this.#mappool = null;
          this.#players = null;
+         this.emit("closed");
       }
    }
 

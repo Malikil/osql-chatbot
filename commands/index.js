@@ -18,7 +18,8 @@ function init(matchmaker, lobbyManager) {
       ["ready", pvp.ready],
       ["r", pvp.ready],
       ["invite", msg => lobbyManager.reinvite(msg.user)],
-      ["reinvite", msg => lobbyManager.reinvite(msg.user)]
+      ["reinvite", msg => lobbyManager.reinvite(msg.user)],
+      ["lobby", msg => lobbyManager.reinvite(msg.user)]
    ].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
    return {

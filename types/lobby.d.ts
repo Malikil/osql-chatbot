@@ -39,4 +39,5 @@ export interface LobbyState {
 
 export interface LobbyEvents {
    finished: [mp: string, state: LobbyState];
+   closed: [];
 }
