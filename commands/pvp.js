@@ -36,7 +36,7 @@ async function queue(msg, matchmaker) {
          res => res.json(),
          err => {
             msg.user.sendMessage(
-               `Failed to create registration. Please visit ${process.env.INTERNAL_URL} to register`
+               `Failed to create registration. Please visit ${process.env.MAPPOOL_URL} to register`
             );
             console.error(err);
          }
@@ -44,7 +44,7 @@ async function queue(msg, matchmaker) {
 
       if (!player) return;
    }
-   if (!player.osu.pvp)
+   if (!player.osu.pvp) {
       player.osu.pvp = await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "PUT",
          body: JSON.stringify({
@@ -53,7 +53,18 @@ async function queue(msg, matchmaker) {
             mode: "osu"
          }),
          headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
-      });
+      }).then(
+         res => res.json(),
+         err => {
+            msg.user.sendMessage(
+               `Failed to create pvp stats. Please visit ${process.env.MAPPOOL_URL}/profile to finish setup`
+            );
+            console.error(err);
+         }
+      );
+
+      if (!player.osu.pvp) return;
+   }
 
    matchmaker.searchForMatch({
       bancho: msg.user,
