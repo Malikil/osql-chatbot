@@ -21,10 +21,10 @@ function init(matchmaker, lobbyManager) {
       ["reinvite", msg => lobbyManager.reinvite(msg.user)],
       ["lobby", msg => lobbyManager.reinvite(msg.user)]
    ].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-
+   const commandList = "Commands list: help, q, unq, lobby";
    return {
-      commands: msg => msg.user.sendMessage(commands.map(com => com[0]).join(", ")),
-      help: msg => msg.user.sendMessage(commands.map(com => com[0]).join(", ")),
+      commands: msg => msg.user.sendMessage(commandList),
+      help: msg => msg.user.sendMessage(commandList),
       ...Object.fromEntries(commands.map(com => [com[0], msg => com[1](msg, matchmaker)]))
    };
 }

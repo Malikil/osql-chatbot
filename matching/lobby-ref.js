@@ -60,9 +60,11 @@ class LobbyRef extends EventEmitter {
    async startMatch() {
       console.log("Create lobby");
       const lobbyChannel = await this.#bancho.createLobby(
-         `MPSQ: ${this.#players[0].bancho.username} vs ${
+         `MPSQ: ${
+            this.#players[0].bancho.username
+         } (${this.#players[0].rating.rating.toFixed()}) vs ${
             this.#players[1].bancho.username
-         } - ${Date.now()}`
+         } (${this.#players[1].rating.rating.toFixed()}) - ${Date.now()}`
       );
       this.#lobby = lobbyChannel.lobby;
       console.log(`Created lobby: ${lobbyChannel.name}`);
@@ -134,7 +136,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobby.slots.every(p => !p)) return this.closeLobby();
       this.#lobby.channel.sendMessage("!mp timer 150 - Player left lobby");
       // Stop trying to start the match
-      this.#lobby.off('allPlayersReady', this.#playersReady);
+      this.#lobby.off("allPlayersReady", this.#playersReady);
       this.#lobby.on("timerEnded", () => {
          this.#lobby.removeAllListeners("playerJoined");
          this.#lobby.channel.sendMessage("Match has been abandoned!");
@@ -158,7 +160,7 @@ class LobbyRef extends EventEmitter {
             this.#lobby.removeAllListeners("timerEnded");
             this.#lobby.abortTimer();
             this.#lobby.removeAllListeners("playerJoined");
-            this.#lobby.on('allPlayersReady', this.#playersReady);
+            this.#lobby.on("allPlayersReady", this.#playersReady);
          }
       });
    }
@@ -169,7 +171,7 @@ class LobbyRef extends EventEmitter {
    #handleLobbyCommand(msg) {
       if (msg.message.startsWith("!")) {
          const command = msg.message.split(" ");
-         if (['!lobby', '!match', '!info'].includes(command[0])) {
+         if (["!lobby", "!match", "!info"].includes(command[0])) {
             const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
             const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
             const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
@@ -190,6 +192,18 @@ class LobbyRef extends EventEmitter {
                   this.#players[this.#lobbyState.nextPlayer].bancho.username
                }`
             );
+            const unavailable = this.#lobbyState.bans.concat(this.#lobbyState.picks);
+            const maplist = ["nm", "hd", "hr", "dt", "fm"]
+               .reduce((agg, mod) => {
+                  const modMaps = this.#mappool[mod]
+                     .map((map, index) => (unavailable.includes(map) ? null : `${mod}${index + 1}`))
+                     .filter(v => v)
+                     .join(", ");
+                  agg.push(modMaps);
+                  return agg;
+               }, [])
+               .join(", ");
+            this.#lobby.channel.sendMessage(`Available maps: ${maplist}`);
             return;
          }
          if (
@@ -302,9 +316,8 @@ class LobbyRef extends EventEmitter {
 
    async #playersReady() {
       // Make sure the players haven't readied again after finishing a song
-      if (this.#lobbyState.picks.find(m => m.id === this.#lobby.beatmapId))
-         return;
-      
+      if (this.#lobbyState.picks.find(m => m.id === this.#lobby.beatmapId)) return;
+
       if (this.#lobbyState.action === "tb") {
          await this.#lobby.updateSettings();
          if (
@@ -368,7 +381,7 @@ class LobbyRef extends EventEmitter {
    }
 
    #matchCompleted() {
-      console.log('Match complete');
+      console.log("Match complete");
       this.#lobby.removeAllListeners();
       this.#lobby.channel.removeAllListeners();
       this.#lobby.channel.sendMessage(
