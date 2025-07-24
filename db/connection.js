@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, Collection } = require("mongodb");
 
 console.log("Create mongo connection");
 const client = new MongoClient(process.env.MONGO_CONNECTION, {
@@ -9,5 +9,9 @@ const client = new MongoClient(process.env.MONGO_CONNECTION, {
    }
 });
 const db = client.db("packchallenge");
+/** @type {Collection<import("../types/database.history").DbHistory>} */
+const historyDb = db.collection("history");
+const mappacksDb = db.collection("maps");
+const playersDb = db.collection("players");
 
 module.exports = db;
