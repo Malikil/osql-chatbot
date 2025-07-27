@@ -1,5 +1,5 @@
 const { PrivateMessage } = require("bancho.js");
-const db = require("../db/connection");
+const { playersDb } = require("../db/connection");
 const Matchmaker = require("../matching/matchmaker");
 
 /**
@@ -17,8 +17,7 @@ async function unqueue(msg, matchmaker) {
  */
 async function queue(msg, matchmaker) {
    console.log("Pvp match request");
-   const playersCollection = db.collection("players");
-   let player = await playersCollection.findOne({
+   let player = await playersDb.findOne({
       osuid: msg.user.id,
       hideLeaderboard: { $exists: false }
    });

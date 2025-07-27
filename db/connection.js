@@ -11,7 +11,12 @@ const client = new MongoClient(process.env.MONGO_CONNECTION, {
 const db = client.db("packchallenge");
 /** @type {Collection<import("../types/database.history").DbHistory>} */
 const historyDb = db.collection("history");
-const mappacksDb = db.collection("maps");
+//const mappacksDb = db.collection("maps");
+/** @type {Collection<import("../types/database.player").DbPlayer>} */
 const playersDb = db.collection("players");
 
-module.exports = db;
+module.exports = {
+   db,
+   historyDb,
+   playersDb
+};
