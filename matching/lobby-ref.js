@@ -22,6 +22,7 @@ class LobbyRef extends EventEmitter {
    #lobby;
    /** @type {import("../types/lobby").Mappool} */
    #mappool;
+   #mode;
    #players;
    /** @type {import("../types/lobby").LobbyState} */
    #lobbyState;
@@ -30,14 +31,16 @@ class LobbyRef extends EventEmitter {
    /**
     * @param {import("../types/matchmaking").MMPlayerObj[]} players
     * @param {BanchoClient} bancho
+    * @param {import("../types/global").GameMode} mode
     */
-   constructor(players, bancho) {
+   constructor(players, bancho, mode = 'osu') {
       super();
       console.log("Set up ref instance");
       this.#players = players;
       this.#bancho = bancho;
+      this.#mode = mode;
       const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
-      fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}`)
+      fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}&m=${mode}`)
          .then(data => data.json())
          .then(pool => (this.#mappool = pool))
          .then(() => console.log(this.#mappool))
@@ -101,7 +104,7 @@ class LobbyRef extends EventEmitter {
          this.#lobby.channel.sendMessage("Pool failed to load, attempting refresh");
          const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
          try {
-            await fetch(`${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}`)
+            await fetch(`${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}&m=${this.#mode}`)
                .then(data => data.json())
                .then(pool => (this.#mappool = pool))
                .then(() => console.log(this.#mappool));
@@ -119,7 +122,7 @@ class LobbyRef extends EventEmitter {
       const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
       const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
       const lUrl = encodeURIComponent(this.#lobby.name);
-      const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
+      const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}&m=${this.#mode}`;
       this.#lobby.channel.sendMessage(
          `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
       );
@@ -275,7 +278,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobbyState.picks.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
-      await this.#lobby.setMap(pickedMap.id);
+      await this.#lobby.setMap(pickedMap.id, this.#mode === 'fruits' ? 'ctb' : this.#mode);
       await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;

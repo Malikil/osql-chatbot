@@ -14,8 +14,9 @@ async function unqueue(msg, matchmaker) {
 /**
  * @param {PrivateMessage} msg
  * @param {Matchmaker} matchmaker
+ * @param {import("../types/global").GameMode} mode
  */
-async function queue(msg, matchmaker) {
+async function queue(msg, matchmaker, mode = 'osu') {
    console.log("Pvp match request");
    let player = await playersDb.findOne({
       osuid: msg.user.id,
@@ -43,13 +44,15 @@ async function queue(msg, matchmaker) {
 
       if (!player) return;
    }
-   if (!player.osu.pvp) {
-      player.osu.pvp = await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+   // Figure out the gamemode
+   if (!['osu', 'fruits'].includes(mode)) mode = 'osu';
+   if (!player[mode].pvp) {
+      player[mode].pvp = await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "PUT",
          body: JSON.stringify({
             id: msg.user.id,
             pp_raw: msg.user.ppRaw,
-            mode: "osu"
+            mode
          }),
          headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
       }).then(
@@ -62,12 +65,13 @@ async function queue(msg, matchmaker) {
          }
       );
 
-      if (!player.osu.pvp) return;
+      if (!player[mode].pvp) return;
    }
 
    matchmaker.searchForMatch({
       bancho: msg.user,
-      rating: player.osu.pvp
+      rating: player[mode].pvp,
+      mode
    });
    msg.user.sendMessage("Searching for pvp match");
 }

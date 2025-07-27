@@ -1,5 +1,5 @@
 import { BanchoUser } from "bancho.js";
-import { Rating } from "./global";
+import { GameMode, Rating } from "./global";
 
 export interface MMPlayerObj {
    bancho: BanchoUser;
@@ -10,6 +10,7 @@ export interface QueuedPlayer {
    player: MMPlayerObj;
    rating: number;
    range: number;
+   mode: GameMode;
 }
 
 export interface PendingLobby {

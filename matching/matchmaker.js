@@ -6,6 +6,7 @@ const EventEmitter = require("node:events");
  * @param {import("../types/matchmaking").QueuedPlayer} p2
  */
 const withinRange = (p1, p2 = {}) => {
+   if (p1.mode !== p2.mode) return false;
    const diff = Math.abs(p1.rating - p2.rating);
    return p1.range > diff && p2.range > diff;
 };
