@@ -3,8 +3,9 @@
    "version": "1.0.0",
    "main": "index.js",
    "scripts": {
-      "start": "dotenvx run -- node app.js",
-      "dev": "nodemon --exec npm start",
+      "build": "tsc --build --clean && tsc",
+      "start": "dotenvx run -- node build/app.js",
+      "dev": "dotenvx run -- nodemon src/app.ts",
       "prod": "nohup npm start > logs/$(date \"+%Y-%m-%d_%H%M\").out 2>&1 &"
    },
    "keywords": [],
@@ -17,6 +18,11 @@
       "mongodb": "^6.10.0"
    },
    "devDependencies": {
-      "nodemon": "^3.1.7"
+      "@tsconfig/node-ts": "^23.6.1",
+      "@tsconfig/node22": "^22.0.2",
+      "@types/node": "^24.1.0",
+      "nodemon": "^3.1.7",
+      "ts-node": "^10.9.2",
+      "typescript": "^5.8.3"
    }
 }

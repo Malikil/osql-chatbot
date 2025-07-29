@@ -1,0 +1,11 @@
+{
+   //"extends": ["@tsconfig/node22/tsconfig.json", "@tsconfig/node-ts/tsconfig.json"],
+   "extends": "@tsconfig/node22/tsconfig.json",
+   "compilerOptions": {
+      "erasableSyntaxOnly": false,
+      "verbatimModuleSyntax": false,
+      "outDir": "build",
+      "allowJs": true
+   },
+   "include": ["src/**/*.ts"]
+}

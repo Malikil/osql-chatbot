@@ -1,10 +1,11 @@
-const { BanchoClient } = require("bancho.js");
-const Matchmaker = require("./matching/matchmaker");
-const LobbyManager = require("./matching/lobby-manager");
+import { BanchoClient } from "bancho.js";
+import Matchmaker from "./matching/matchmaker";
+import LobbyManager from "./matching/lobby-manager";
+import { init as commandInit } from "./commands";
 
 const client = new BanchoClient({
-   username: process.env.OSU_IRC_USERNAME,
-   password: process.env.OSU_IRC_PASSWORD,
+   username: process.env.OSU_IRC_USERNAME || "",
+   password: process.env.OSU_IRC_PASSWORD || "",
    apiKey: process.env.OSU_API_KEY
 });
 const matchmaker = new Matchmaker({
@@ -13,7 +14,7 @@ const matchmaker = new Matchmaker({
 });
 const lobbyManager = new LobbyManager(client);
 
-const commands = require("./commands").init(matchmaker, lobbyManager);
+const commands = commandInit(matchmaker, lobbyManager);
 
 client
    .connect()
@@ -27,8 +28,8 @@ client
                await msg.user.fetchFromAPI();
             }
             const commandArgs = msg.message.slice(1).split(" ");
-            const commandName = commandArgs.shift().toLowerCase();
-            (commands[commandName] || (() => {}))(msg, commandArgs);
+            const commandName = commandArgs.shift()?.toLowerCase();
+            (commands[commandName || ""] || (() => {}))(msg);
          }
       });
    })

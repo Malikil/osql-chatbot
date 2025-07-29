@@ -1,37 +1,32 @@
-const { PrivateMessage } = require("bancho.js");
-const { playersDb } = require("../db/connection");
-const Matchmaker = require("../matching/matchmaker");
+import { PrivateMessage } from "bancho.js";
+import Matchmaker from "../matching/matchmaker";
+import { playersDb } from "../db/connection";
+import { GameMode } from "../types/global";
+import { DbPlayer, PvPInfo } from "../types/database.player";
 
-/**
- * @param {PrivateMessage} msg
- * @param {Matchmaker} matchmaker
- */
-async function unqueue(msg, matchmaker) {
+export type PvpCommand = (msg: PrivateMessage, matchmaker: Matchmaker) => Promise<void>;
+
+export const unqueue: PvpCommand = async (msg, matchmaker) => {
    matchmaker.unqueue(msg.user);
    msg.user.sendMessage("Removed from queue");
-}
+};
 
-/**
- * @param {PrivateMessage} msg
- * @param {Matchmaker} matchmaker
- * @param {import("../types/global").GameMode} mode
- */
-async function queue(msg, matchmaker, mode = 'osu') {
+export const queue: PvpCommand = async (msg, matchmaker) => {
    console.log("Pvp match request");
-   let player = await playersDb.findOne({
+   let player: DbPlayer | null = await playersDb.findOne({
       osuid: msg.user.id,
       hideLeaderboard: { $exists: false }
    });
    if (!player) {
       // Reister the player
       msg.user.sendMessage("No registration found, creating info.");
-      player = await fetch(`${process.env.INTERNAL_URL}/api/db/register`, {
+      player = (await fetch(`${process.env.INTERNAL_URL}/api/db/register`, {
          method: "POST",
          body: JSON.stringify({
             osuid: msg.user.id,
             osuname: msg.user.username
          }),
-         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
+         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH || ""]]
       }).then(
          res => res.json(),
          err => {
@@ -40,21 +35,22 @@ async function queue(msg, matchmaker, mode = 'osu') {
             );
             console.error(err);
          }
-      );
+      )) as DbPlayer | null;
 
       if (!player) return;
    }
    // Figure out the gamemode
-   if (!['osu', 'fruits'].includes(mode)) mode = 'osu';
+   let mode = msg.message.split(" ")[1] as GameMode;
+   if (!["osu", "fruits"].includes(mode)) mode = "osu";
    if (!player[mode].pvp) {
-      player[mode].pvp = await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+      player[mode].pvp = (await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "PUT",
          body: JSON.stringify({
             id: msg.user.id,
             pp_raw: msg.user.ppRaw,
             mode
          }),
-         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH]]
+         headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH || ""]]
       }).then(
          res => res.json(),
          err => {
@@ -63,28 +59,24 @@ async function queue(msg, matchmaker, mode = 'osu') {
             );
             console.error(err);
          }
-      );
+      )) as PvPInfo;
 
       if (!player[mode].pvp) return;
    }
 
    matchmaker.searchForMatch({
       bancho: msg.user,
-      rating: player[mode].pvp,
+      rating: player[mode].pvp as PvPInfo,
       mode
    });
    msg.user.sendMessage("Searching for pvp match");
-}
+};
 
-/**
- * @param {PrivateMessage} msg
- * @param {Matchmaker} matchmaker
- */
-function ready(msg, matchmaker) {
+export const ready: PvpCommand = async (msg, matchmaker) => {
    matchmaker.playerReady(msg.user);
-}
+};
 
-module.exports = {
+export default {
    queue,
    unqueue,
    ready

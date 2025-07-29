@@ -24,8 +24,8 @@ class Matchmaker extends EventEmitter {
 
    /**
     * @param {object} options
-    * @param {number} options.searchInterval How often to attempt to create matches
-    * @param {number | function(import("../types/matchmaking").QueuedPlayer): number} options.searchRangeIncrement
+    * @param {number} [options.searchInterval] How often to attempt to create matches
+    * @param {number | function(import("../types/matchmaking").QueuedPlayer): number} [options.searchRangeIncrement]
     * How much should the rating range increase per matching attempt. A number argument will increase
     * by a flat amount. Or pass a function which returns the new search range value.
     */
@@ -116,7 +116,8 @@ class Matchmaker extends EventEmitter {
       this.#playerQueue.push({
          player,
          rating: player.rating.rating,
-         range: player.rating.rd
+         range: player.rating.rd,
+         mode: player.mode
       });
       //this.#playerQueue.sort((a, b) => a.rating - b.rating);
       console.log(this.#playerQueue);

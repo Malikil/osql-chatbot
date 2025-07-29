@@ -3,7 +3,8 @@ import { GameMode, Rating } from "./global";
 
 export interface MMPlayerObj {
    bancho: BanchoUser;
-   rating: Rating
+   rating: Rating;
+   mode: GameMode;
 }
 
 export interface QueuedPlayer {
