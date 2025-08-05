@@ -3,8 +3,7 @@ import Matchmaker from "../matching/matchmaker";
 import { playersDb } from "../db/connection";
 import { GameMode } from "../types/global";
 import { DbPlayer, PvPInfo } from "../types/database.player";
-
-export type PvpCommand = (msg: PrivateMessage, matchmaker: Matchmaker) => Promise<void>;
+import { PvpCommand } from "../types/commands";
 
 export const unqueue: PvpCommand = async (msg, matchmaker) => {
    matchmaker.unqueue(msg.user);
