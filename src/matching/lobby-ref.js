@@ -347,7 +347,7 @@ class LobbyRef extends EventEmitter {
          )
             return this.#lobby.channel.sendMessage("NoFail is required. HD or HR is required.");
       }
-      this.#lobby.startMatch();
+      this.#lobby.startMatch(5);
    }
 
    /**

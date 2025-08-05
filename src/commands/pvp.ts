@@ -41,7 +41,7 @@ export const queue: PvpCommand = async (msg, matchmaker) => {
    // Figure out the gamemode
    let mode = msg.message.split(" ")[1] as GameMode | "ctb";
    if (mode === "ctb") mode = "fruits";
-   if (!["osu", "fruits"].includes(mode)) mode = "osu";
+   if (!["osu", "fruits", "taiko"].includes(mode)) mode = "osu";
    if (!player[mode].pvp) {
       player[mode].pvp = (await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "PUT",

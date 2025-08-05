@@ -1,6 +1,7 @@
 import { MongoClient, ServerApiVersion, Collection } from "mongodb";
 import { DbHistory } from "../types/database.history";
 import { DbPlayer } from "../types/database.player";
+import { DbBeatmap } from "../types/database.beatmap";
 
 console.log("Create mongo connection");
 const client = new MongoClient(process.env.MONGO_CONNECTION || "", {
@@ -13,5 +14,5 @@ const client = new MongoClient(process.env.MONGO_CONNECTION || "", {
 
 export const db = client.db("packchallenge");
 export const historyDb = db.collection<DbHistory>("history");
-//const mappacksDb = db.collection("maps");
+export const mapsDb = db.collection<DbBeatmap>("maps");
 export const playersDb = db.collection<DbPlayer>("players");

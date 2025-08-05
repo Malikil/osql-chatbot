@@ -1,27 +1,19 @@
-const { BanchoUser, BanchoClient } = require("bancho.js");
-const LobbyRef = require("./lobby-ref");
+import { BanchoUser, BanchoClient } from "bancho.js";
+import LobbyRef from "./lobby-ref";
+import { GameMode } from "../types/global";
 
 class LobbyManager {
-   /** @type {LobbyRef[]} */
    #activeLobbies: LobbyRef[];
-   /** @type {BanchoClient} */
    #bancho: BanchoClient;
 
-   /**
-    * @param {BanchoClient} bancho
-    */
    constructor(bancho: BanchoClient) {
-      this.init(bancho);
-   }
-
-   init(bancho) {
       this.#activeLobbies = [];
       this.#bancho = bancho;
    }
 
-   createLobby(players) {
-      console.log("Create match with players", players);
-      const lobby = new LobbyRef(players, this.#bancho);
+   createLobby(player: BanchoUser, mode: GameMode = "osu") {
+      console.log("Create score rush with player", player);
+      const lobby = new LobbyRef(player, this.#bancho, mode);
       lobby.startMatch();
       this.#activeLobbies.push(lobby);
       const finished = () => {
@@ -32,13 +24,10 @@ class LobbyManager {
       lobby.on("closed", finished);
    }
 
-   /**
-    * @param {BanchoUser} player
-    */
    reinvite(player: BanchoUser) {
       const lobby = this.#activeLobbies.find(l => l.hasPlayer(player));
-      lobby.invite(player);
+      lobby?.invite(player);
    }
 }
 
-module.exports = LobbyManager;
+export default LobbyManager;
