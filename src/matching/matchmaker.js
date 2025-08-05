@@ -99,6 +99,7 @@ class Matchmaker extends EventEmitter {
                this.#pendingLobbies.splice(pendIndex, 1);
             }, 60000)
          };
+         console.log("Found lobby", pending);
          this.#pendingLobbies.push(pending);
       });
    }
