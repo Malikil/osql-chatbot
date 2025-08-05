@@ -1,0 +1,44 @@
+const { BanchoUser, BanchoClient } = require("bancho.js");
+const LobbyRef = require("./lobby-ref");
+
+class LobbyManager {
+   /** @type {LobbyRef[]} */
+   #activeLobbies: LobbyRef[];
+   /** @type {BanchoClient} */
+   #bancho: BanchoClient;
+
+   /**
+    * @param {BanchoClient} bancho
+    */
+   constructor(bancho: BanchoClient) {
+      this.init(bancho);
+   }
+
+   init(bancho) {
+      this.#activeLobbies = [];
+      this.#bancho = bancho;
+   }
+
+   createLobby(players) {
+      console.log("Create match with players", players);
+      const lobby = new LobbyRef(players, this.#bancho);
+      lobby.startMatch();
+      this.#activeLobbies.push(lobby);
+      const finished = () => {
+         const i = this.#activeLobbies.findIndex(l => l === lobby);
+         this.#activeLobbies.splice(i, 1);
+         lobby.off("closed", finished);
+      };
+      lobby.on("closed", finished);
+   }
+
+   /**
+    * @param {BanchoUser} player
+    */
+   reinvite(player: BanchoUser) {
+      const lobby = this.#activeLobbies.find(l => l.hasPlayer(player));
+      lobby.invite(player);
+   }
+}
+
+module.exports = LobbyManager;
