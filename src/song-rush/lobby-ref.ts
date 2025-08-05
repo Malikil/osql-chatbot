@@ -8,9 +8,10 @@ import {
    BanchoLobbyPlayer,
    BanchoUser
 } from "bancho.js";
+import { Mode } from 'nodesu'
 import EventEmitter from "node:events";
 import { LobbyEvents } from "../types/lobby";
-import { GameMode } from "../types/global";
+import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb } from "../db/connection";
 
 class LobbyRef extends EventEmitter<LobbyEvents> {
@@ -68,7 +69,8 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
    }
 
    async #playersJoined() {
-      console.log(`${this.#lobby?.id} - All players joined`);
+      if (!this.#lobby) throw new Error('Players joined but no lobby found');
+      console.log(`${this.#lobby.id} - All players joined`);
       // Set the initial map
       // Get initial rating value
       const minValues = await mapsDb
@@ -86,26 +88,36 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
          ])
          .next();
       if (!minValues) throw new Error("No minimum values returned from database");
-      const absoluteMin = Math.min(
+      this.#nextRating = Math.min(
          minValues.minNm,
          minValues.minHd,
          minValues.minHr,
          minValues.minDt
       );
-      const minHundreds = (absoluteMin / 100) | 0;
       // Get the map
       const candidateMaps = await mapsDb
          .find({
             $or: [
-               { "ratings.nm.rating": { $gte: minHundreds * 100, $lte: (minHundreds + 1) * 100 } },
-               { "ratings.hd.rating": { $gte: minHundreds * 100, $lte: (minHundreds + 1) * 100 } },
-               { "ratings.hr.rating": { $gte: minHundreds * 100, $lte: (minHundreds + 1) * 100 } },
-               { "ratings.dt.rating": { $gte: minHundreds * 100, $lte: (minHundreds + 1) * 100 } }
+               { "ratings.nm.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
+               { "ratings.hd.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
+               { "ratings.hr.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
+               { "ratings.dt.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } }
             ]
          })
          .toArray();
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
-      this.#nextRating = minHundreds + 1;
+      const availableMods = (['nm', 'hd', 'hr', 'dt'] as SimpleMod[])
+         .filter(mod => randMap.ratings[mod].rating >= this.#nextRating && randMap.ratings[mod].rating <= this.#nextRating + 100);
+      const randMod = availableMods[(Math.random() * availableMods.length) | 0];
+      // Set the map and update the next rating range
+      await this.#lobby.setMap(randMap.id, Mode[this.#mode === 'fruits' ? 'ctb' : this.#mode]);
+      await this.#lobby.setMods(randMod);
+      this.#nextRating = randMap.ratings[randMod].rating;
+
+      // Set up events for match gameplay
+      this.#lobby.on('allPlayersReady', this.#playersReady.bind(this));
+      this.#lobby.on('playerLeft', this.#playerLeft.bind(this));
+      
    }
 
    async #playerLeft(player: BanchoLobbyPlayer) {}
