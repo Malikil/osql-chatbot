@@ -4,9 +4,9 @@ import {
    BanchoLobbyTeamModes,
    BanchoLobbyWinConditions,
    BanchoMessage,
-   BanchoMods,
    BanchoLobbyPlayer,
-   BanchoUser
+   BanchoUser,
+   BanchoLobbyPlayerScore
 } from "bancho.js";
 import { Mode } from 'nodesu'
 import EventEmitter from "node:events";
@@ -20,7 +20,9 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
    #mode;
    #player;
    #interruptHandler;
+   #completedRating;
    #nextRating;
+   #currentHealth;
 
    constructor(player: BanchoUser, bancho: BanchoClient, mode: GameMode = "osu") {
       super();
@@ -28,7 +30,9 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       this.#bancho = bancho;
       this.#mode = mode;
       this.#player = player;
+      this.#completedRating = 0;
       this.#nextRating = 0;
+      this.#currentHealth = 50;
       this.#interruptHandler = (() => {
          this.#lobby?.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
@@ -64,14 +68,16 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
          }
       };
       this.#lobby.on("playerJoined", playerJoined);
+      // Set up events for match gameplay
+      this.#lobby.on('allPlayersReady', this.#playersReady.bind(this));
+      this.#lobby.on('playerLeft', this.#playerLeft.bind(this));
+      this.#lobby.on('matchFinished', this.#songFinished.bind(this) as () => void);
       // Invite player
       this.#lobby.invitePlayer(`#${this.#player.id}`);
    }
 
    async #playersJoined() {
-      if (!this.#lobby) throw new Error('Players joined but no lobby found');
-      console.log(`${this.#lobby.id} - All players joined`);
-      // Set the initial map
+      console.log(`${this.#lobby?.id} - All players joined`);
       // Get initial rating value
       const minValues = await mapsDb
          .aggregate<{ minNm: number; minHd: number; minHr: number; minDt: number }>([
@@ -88,50 +94,72 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
          ])
          .next();
       if (!minValues) throw new Error("No minimum values returned from database");
-      this.#nextRating = Math.min(
+      this.#completedRating = Math.min(
          minValues.minNm,
          minValues.minHd,
          minValues.minHr,
          minValues.minDt
-      );
+      ) - 1;
       // Get the map
-      const candidateMaps = await mapsDb
-         .find({
-            $or: [
-               { "ratings.nm.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
-               { "ratings.hd.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
-               { "ratings.hr.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } },
-               { "ratings.dt.rating": { $gte: this.#nextRating, $lte: this.#nextRating + 100 } }
-            ]
-         })
-         .toArray();
-      const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
-      const availableMods = (['nm', 'hd', 'hr', 'dt'] as SimpleMod[])
-         .filter(mod => randMap.ratings[mod].rating >= this.#nextRating && randMap.ratings[mod].rating <= this.#nextRating + 100);
-      const randMod = availableMods[(Math.random() * availableMods.length) | 0];
-      // Set the map and update the next rating range
-      await this.#lobby.setMap(randMap.id, Mode[this.#mode === 'fruits' ? 'ctb' : this.#mode]);
-      await this.#lobby.setMods(randMod);
-      this.#nextRating = randMap.ratings[randMod].rating;
-
-      // Set up events for match gameplay
-      this.#lobby.on('allPlayersReady', this.#playersReady.bind(this));
-      this.#lobby.on('playerLeft', this.#playerLeft.bind(this));
-      
+      this.#nextSong();
    }
 
    async #playerLeft(player: BanchoLobbyPlayer) {}
 
    #handleLobbyCommand(msg: BanchoMessage) {}
 
-   async #playersReady() {}
+   async #playersReady() {
+      this.#lobby?.startMatch(5);
+   }
 
-   /**
-    * @param {BanchoLobbyPlayerScore[]} scores
-    */
-   #songFinished() {}
+   #songFinished(scores: BanchoLobbyPlayerScore[]) {
+      console.log(scores);
+      this.#completedRating = this.#nextRating;
+      const playerScore = scores.find(s => s.player.user.id === this.#player.id);
+      const oldHealth = this.#currentHealth;
+      // Calculate the new health value
+      const pass = !!playerScore?.pass;
+      // Curve through (0,0) (750k, 5) (1m, 10)
+      const hpMod = 3.49522 * Math.pow(playerScore?.score || 0, 2.40942) / 100_000_000_000_000; // Magic numbers! 10^14
+      this.#currentHealth = Math.min(hpMod - 5 - (+pass) * 10, 99) | 0;
+      // Message new health value
+      const gain = oldHealth < this.#currentHealth ? 'Gained' : 'Lost';
+      const diff = Math.abs(this.#currentHealth - oldHealth);
+      this.#lobby?.channel.sendMessage(`${gain} ${diff} lives. Now at ${this.#currentHealth}`);
+      if (this.#currentHealth < 1) this.#matchCompleted();
+      else this.#nextSong();
+   }
 
-   #matchCompleted() {}
+   async #nextSong() {
+      if (!this.#lobby) throw new Error('Next song but no lobby found');
+
+      const candidateMaps = await mapsDb
+         .find({
+            $or: [
+               { "ratings.nm.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
+               { "ratings.hd.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
+               { "ratings.hr.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
+               { "ratings.dt.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } }
+            ]
+         })
+         .toArray();
+      const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
+      const availableMods = (['nm', 'hd', 'hr', 'dt'] as SimpleMod[])
+         .filter(mod =>
+            randMap.ratings[mod].rating >= this.#completedRating
+            && randMap.ratings[mod].rating <= this.#completedRating + 100
+         );
+      const randMod = availableMods[(Math.random() * availableMods.length) | 0];
+      // Set the map and update the next rating range
+      await this.#lobby.setMap(randMap.id, Mode[this.#mode === 'fruits' ? 'ctb' : this.#mode]);
+      await this.#lobby.setMods(randMod);
+      this.#nextRating = randMap.ratings[randMod].rating; 
+   }
+
+   #matchCompleted() {
+      this.#lobby?.channel.sendMessage("Lobby finished - not fully implemented");
+      setTimeout(this.closeLobby, 5000);
+   }
 
    async closeLobby() {
       process.off("SIGTERM", this.#interruptHandler);
