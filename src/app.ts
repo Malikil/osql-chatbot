@@ -1,6 +1,7 @@
 import { BanchoClient } from "bancho.js";
 import Matchmaker from "./matching/matchmaker";
 import LobbyManager from "./matching/lobby-manager";
+import PveManager from './song-rush/lobby-manager';
 import { init as commandInit } from "./commands";
 
 const client = new BanchoClient({
@@ -13,8 +14,9 @@ const matchmaker = new Matchmaker({
       Math.sqrt(p.range * p.range + (p.player.rating.rd * p.player.rating.rd) / 5)
 });
 const lobbyManager = new LobbyManager(client);
+const pveManager = new PveManager(client);
 
-const commands = commandInit(matchmaker, lobbyManager);
+const commands = commandInit(matchmaker, lobbyManager, pveManager);
 
 client
    .connect()
