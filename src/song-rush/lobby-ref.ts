@@ -50,7 +50,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
          `Score Rush ${this.#player.username} - ${Date.now()}`
       );
       this.#lobby = mpChannel.lobby;
-      mpChannel.on("message", this.#handleLobbyCommand.bind(this));
+      mpChannel.on("message", this.#handleLobbyMessage.bind(this));
 
       console.log(`Created lobby: ${mpChannel.name}`);
       await this.#lobby.setSettings(
@@ -60,8 +60,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       // Set up lobby listeners
       const playerJoined = ({ player }: { player: BanchoLobbyPlayer }) => {
          console.log(`${player.user.username} joined the lobby`);
-         const pcount = this.#lobby?.slots.filter(p => p).length;
-         if (pcount && pcount > 1) {
+         if (player.user.username === this.#player.username) {
             // Stop waiting for players to join
             this.#lobby?.off("playerJoined", playerJoined);
             this.#playersJoined();
@@ -69,7 +68,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       };
       this.#lobby.on("playerJoined", playerJoined);
       // Set up events for match gameplay
-      this.#lobby.on('allPlayersReady', this.#playersReady.bind(this));
+      this.#lobby.on('allPlayersReady', this.#playersReady);
       this.#lobby.on('playerLeft', this.#playerLeft.bind(this));
       this.#lobby.on('matchFinished', this.#songFinished.bind(this) as () => void);
       // Invite player
@@ -104,11 +103,43 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       this.#nextSong();
    }
 
-   async #playerLeft(player: BanchoLobbyPlayer) {}
+   async #playerLeft(player: BanchoLobbyPlayer) {
+      if (!this.#lobby) throw new Error('Player left but no lobby');
+      // If the primary player leaves, close the lobby
+      if (player.user.username === this.#player.username)
+      {
+         this.#lobby.off('allPlayersReady', this.#playersReady);
+         this.#lobby.channel.sendMessage('PvE player left. Lobby will close');
+         this.#lobby.startTimer(60);
+         this.#lobby.on('timerEnded', this.#matchCompleted);
+         const playerRejoined = ({ player }: { player: BanchoLobbyPlayer }) => {
+            console.log(`${player.user.username} rejoined`);
+            if (player.user.username === this.#player.username) {
+               this.#lobby?.channel.sendMessage('PvE player rejoined');
+               this.#lobby?.abortTimer();
+               this.#lobby?.off('timerEnded', this.#matchCompleted);
+               this.#lobby?.on('allPlayersReady', this.#playersReady);
+               this.#lobby?.off('playerJoined', playerRejoined);
+            }
+         }
+         this.#lobby.on('playerJoined', playerRejoined)
+      }
+   }
 
-   #handleLobbyCommand(msg: BanchoMessage) {}
+   async #handleLobbyMessage(msg: BanchoMessage) {
+      if (msg.user.username === this.#player.username) {
+         if (msg.content === 'skip') {
+            if (this.#currentHealth < 2) this.#lobby?.channel.sendMessage("Not enough life to skip song");
+            else {
+            this.#currentHealth -= 1;
+            this.#lobby?.channel.sendMessage(`Skipping song. New life count: ${this.#currentHealth}`);
+            await this.#nextSong();
+            }
+         }
+      }
+   }
 
-   async #playersReady() {
+   #playersReady = async () => {
       this.#lobby?.startMatch(5);
    }
 
@@ -168,7 +199,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       this.#nextRating = randMap.ratings[randMod].rating; 
    }
 
-   #matchCompleted() {
+   #matchCompleted = () => {
       this.#lobby?.channel.sendMessage("Lobby finished - not fully implemented");
       setTimeout(this.closeLobby, 5000);
    }
