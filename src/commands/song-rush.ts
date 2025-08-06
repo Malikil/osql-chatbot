@@ -6,5 +6,5 @@ export const escalatingLobby: PveCommand = async (msg, lobbyManager) => {
    let mode = msg.message.split(" ")[1] as GameMode | "ctb";
    if (mode === "ctb") mode = "fruits";
    if (!["osu", "fruits", "taiko"].includes(mode)) mode = "osu";
-   lobbyManager.createLobby(msg.user);
+   lobbyManager.createLobby(msg.user, mode);
 };

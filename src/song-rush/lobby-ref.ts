@@ -112,16 +112,28 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       this.#lobby?.startMatch(5);
    }
 
+   #hpCalc(score?: BanchoLobbyPlayerScore) {
+      if (!score) return -15;
+      const coef = {
+         osu: [3.49522, 2.40942, 14],
+         fruits: [2.56953, 4.26502, 25],
+         taiko: [2.30302, 3.10628, 18],
+         mania: []
+      };
+      const fail = +!score.pass * 10;
+      const [a, b, c] = coef[this.#mode];
+      const hpMod = ((a * Math.pow(score.score, b) / Math.pow(10, c)) | 0) - 5;
+      return hpMod - fail;
+   }
+
    #songFinished(scores: BanchoLobbyPlayerScore[]) {
       console.log(scores);
       this.#completedRating = this.#nextRating;
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
       const oldHealth = this.#currentHealth;
       // Calculate the new health value
-      const pass = !!playerScore?.pass;
-      // Curve through (0,0) (750k, 5) (1m, 10)
-      const hpMod = 3.49522 * Math.pow(playerScore?.score || 0, 2.40942) / 100_000_000_000_000; // Magic numbers! 10^14
-      this.#currentHealth = Math.min(hpMod - 5 - (+pass) * 10, 99) | 0;
+      const hpMod = this.#hpCalc(playerScore);
+      this.#currentHealth = Math.min(this.#currentHealth + hpMod, 99);
       // Message new health value
       const gain = oldHealth < this.#currentHealth ? 'Gained' : 'Lost';
       const diff = Math.abs(this.#currentHealth - oldHealth);
