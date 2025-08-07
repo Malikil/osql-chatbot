@@ -8,13 +8,32 @@ import {
    BanchoUser,
    BanchoLobbyPlayerScore
 } from "bancho.js";
-import { Mode } from 'nodesu'
+import { Mode } from "nodesu";
 import EventEmitter from "node:events";
-import { LobbyEvents } from "../types/lobby";
 import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb } from "../db/connection";
 
-class LobbyRef extends EventEmitter<LobbyEvents> {
+class LobbyRef extends EventEmitter<{
+   finished: [
+      mp: number,
+      lobbyState: {
+         player: number;
+         mode: GameMode;
+         lives: number;
+         completedRating: number;
+      }
+   ];
+   paused: [
+      mp: number,
+      lobbyState: {
+         player: number;
+         mode: GameMode;
+         lives: number;
+         completedRating: number;
+      }
+   ];
+   closed: [];
+}> {
    #bancho;
    #lobby?: BanchoLobby;
    #mode;
@@ -68,9 +87,9 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       };
       this.#lobby.on("playerJoined", playerJoined);
       // Set up events for match gameplay
-      this.#lobby.on('allPlayersReady', this.#playersReady);
-      this.#lobby.on('playerLeft', this.#playerLeft.bind(this));
-      this.#lobby.on('matchFinished', this.#songFinished.bind(this) as () => void);
+      this.#lobby.on("allPlayersReady", this.#playersReady);
+      this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
+      this.#lobby.on("matchFinished", this.#songFinished.bind(this) as () => void);
       // Invite player
       this.#lobby.invitePlayer(`#${this.#player.id}`);
    }
@@ -79,7 +98,12 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       console.log(`${this.#lobby?.id} - All players joined`);
       // Get initial rating value
       const minValues = await mapsDb
-         .aggregate<{ minNm: number; minHd: number; minHr: number; minDt: number }>([
+         .aggregate<{
+            minNm: number;
+            minHd: number;
+            minHr: number;
+            minDt: number;
+         }>([
             { $match: { mode: this.#mode } },
             {
                $group: {
@@ -93,47 +117,55 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
          ])
          .next();
       if (!minValues) throw new Error("No minimum values returned from database");
-      this.#completedRating = Math.min(
-         minValues.minNm,
-         minValues.minHd,
-         minValues.minHr,
-         minValues.minDt
-      ) - 1;
+      this.#completedRating =
+         Math.min(minValues.minNm, minValues.minHd, minValues.minHr, minValues.minDt) - 1;
       // Get the map
       this.#nextSong();
    }
 
    async #playerLeft(player: BanchoLobbyPlayer) {
-      if (!this.#lobby) throw new Error('Player left but no lobby');
+      if (!this.#lobby) throw new Error("Player left but no lobby");
+      const lobbyid = this.#lobby.id;
       // If the primary player leaves, close the lobby
-      if (player.user.username === this.#player.username)
-      {
-         this.#lobby.off('allPlayersReady', this.#playersReady);
-         this.#lobby.channel.sendMessage('PvE player left. Lobby will close');
+      if (player.user.username === this.#player.username) {
+         this.#lobby.off("allPlayersReady", this.#playersReady);
+         this.#lobby.channel.sendMessage("PvE player left. Lobby will close");
          this.#lobby.startTimer(60);
-         this.#lobby.on('timerEnded', this.#matchCompleted);
+         const pauseLobby = () => {
+            this.emit("paused", lobbyid, {
+               player: this.#player.id,
+               mode: this.#mode,
+               lives: this.#currentHealth,
+               completedRating: this.#completedRating
+            });
+            this.closeLobby();
+         };
+         this.#lobby.on("timerEnded", pauseLobby);
          const playerRejoined = ({ player }: { player: BanchoLobbyPlayer }) => {
             console.log(`${player.user.username} rejoined`);
             if (player.user.username === this.#player.username) {
-               this.#lobby?.channel.sendMessage('PvE player rejoined');
+               this.#lobby?.channel.sendMessage("PvE player rejoined");
                this.#lobby?.abortTimer();
-               this.#lobby?.off('timerEnded', this.#matchCompleted);
-               this.#lobby?.on('allPlayersReady', this.#playersReady);
-               this.#lobby?.off('playerJoined', playerRejoined);
+               this.#lobby?.off("timerEnded", pauseLobby);
+               this.#lobby?.on("allPlayersReady", this.#playersReady);
+               this.#lobby?.off("playerJoined", playerRejoined);
             }
-         }
-         this.#lobby.on('playerJoined', playerRejoined)
+         };
+         this.#lobby.on("playerJoined", playerRejoined);
       }
    }
 
    async #handleLobbyMessage(msg: BanchoMessage) {
       if (msg.user.username === this.#player.username) {
-         if (msg.content === 'skip') {
-            if (this.#currentHealth < 2) this.#lobby?.channel.sendMessage("Not enough life to skip song");
+         if (msg.content === "skip") {
+            if (this.#currentHealth < 2)
+               this.#lobby?.channel.sendMessage("Not enough life to skip song");
             else {
-            this.#currentHealth -= 1;
-            this.#lobby?.channel.sendMessage(`Skipping song. New life count: ${this.#currentHealth}`);
-            await this.#nextSong();
+               this.#currentHealth -= 1;
+               this.#lobby?.channel.sendMessage(
+                  `Skipping song. New life count: ${this.#currentHealth}`
+               );
+               await this.#nextSong();
             }
          }
       }
@@ -141,7 +173,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
 
    #playersReady = async () => {
       this.#lobby?.startMatch(5);
-   }
+   };
 
    #hpCalc(score?: BanchoLobbyPlayerScore) {
       if (!score) return -15;
@@ -153,7 +185,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       };
       const fail = +!score.pass * 10;
       const [a, b, c] = coef[this.#mode];
-      const hpMod = ((a * Math.pow(score.score, b) / Math.pow(10, c)) | 0) - 5;
+      const hpMod = (((a * Math.pow(score.score, b)) / Math.pow(10, c)) | 0) - 5;
       return hpMod - fail;
    }
 
@@ -166,7 +198,7 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
       const hpMod = this.#hpCalc(playerScore);
       this.#currentHealth = Math.min(this.#currentHealth + hpMod, 99);
       // Message new health value
-      const gain = oldHealth < this.#currentHealth ? 'Gained' : 'Lost';
+      const gain = oldHealth < this.#currentHealth ? "Gained" : "Lost";
       const diff = Math.abs(this.#currentHealth - oldHealth);
       this.#lobby?.channel.sendMessage(`${gain} ${diff} lives. Now at ${this.#currentHealth}`);
       if (this.#currentHealth < 1) this.#matchCompleted();
@@ -174,35 +206,62 @@ class LobbyRef extends EventEmitter<LobbyEvents> {
    }
 
    async #nextSong() {
-      if (!this.#lobby) throw new Error('Next song but no lobby found');
+      if (!this.#lobby) throw new Error("Next song but no lobby found");
 
       const candidateMaps = await mapsDb
          .find({
             $or: [
-               { "ratings.nm.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
-               { "ratings.hd.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
-               { "ratings.hr.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } },
-               { "ratings.dt.rating": { $gt: this.#completedRating, $lte: this.#completedRating + 100 } }
+               {
+                  "ratings.nm.rating": {
+                     $gt: this.#completedRating,
+                     $lte: this.#completedRating + 100
+                  }
+               },
+               {
+                  "ratings.hd.rating": {
+                     $gt: this.#completedRating,
+                     $lte: this.#completedRating + 100
+                  }
+               },
+               {
+                  "ratings.hr.rating": {
+                     $gt: this.#completedRating,
+                     $lte: this.#completedRating + 100
+                  }
+               },
+               {
+                  "ratings.dt.rating": {
+                     $gt: this.#completedRating,
+                     $lte: this.#completedRating + 100
+                  }
+               }
             ]
          })
          .toArray();
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
-      const availableMods = (['nm', 'hd', 'hr', 'dt'] as SimpleMod[])
-         .filter(mod =>
-            randMap.ratings[mod].rating >= this.#completedRating
-            && randMap.ratings[mod].rating <= this.#completedRating + 100
-         );
+      const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
+         mod =>
+            randMap.ratings[mod].rating >= this.#completedRating &&
+            randMap.ratings[mod].rating <= this.#completedRating + 100
+      );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
       // Set the map and update the next rating range
-      await this.#lobby.setMap(randMap.id, Mode[this.#mode === 'fruits' ? 'ctb' : this.#mode]);
+      await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
-      this.#nextRating = randMap.ratings[randMod].rating; 
+      this.#nextRating = randMap.ratings[randMod].rating;
    }
 
    #matchCompleted = () => {
-      this.#lobby?.channel.sendMessage("Lobby finished - not fully implemented");
-      setTimeout(this.closeLobby, 5000);
-   }
+      if (!this.#lobby) throw new Error("Match finished but no lobby");
+      this.#lobby.channel.sendMessage("Lobby finished - submitting result to server");
+      this.emit("finished", this.#lobby.id, {
+         player: this.#player.id,
+         mode: this.#mode,
+         lives: this.#currentHealth,
+         completedRating: this.#completedRating
+      });
+      setTimeout(this.closeLobby, 8000);
+   };
 
    async closeLobby() {
       process.off("SIGTERM", this.#interruptHandler);
