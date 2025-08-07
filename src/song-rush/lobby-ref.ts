@@ -13,6 +13,9 @@ import EventEmitter from "node:events";
 import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb } from "../db/connection";
 
+const MIN_STEP = 10;
+const MAX_STEP = 110;
+
 class LobbyRef extends EventEmitter<{
    finished: [
       mp: number,
@@ -52,12 +55,12 @@ class LobbyRef extends EventEmitter<{
       this.#completedRating = 0;
       this.#nextRating = 0;
       this.#currentHealth = 50;
-      this.#interruptHandler = (() => {
+      this.#interruptHandler = () => {
          this.#lobby?.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
          );
          this.closeLobby();
-      }).bind(this);
+      };
    }
 
    async startMatch() {
@@ -71,10 +74,11 @@ class LobbyRef extends EventEmitter<{
       this.#lobby = mpChannel.lobby;
       mpChannel.on("message", this.#handleLobbyMessage.bind(this));
 
-      console.log(`Created lobby: ${mpChannel.name}`);
+      console.log(`Created ${this.#mode} lobby: ${mpChannel.name}`);
       await this.#lobby.setSettings(
          BanchoLobbyTeamModes.HeadToHead,
-         BanchoLobbyWinConditions.ScoreV2
+         BanchoLobbyWinConditions.ScoreV2,
+         8
       );
       // Set up lobby listeners
       const playerJoined = ({ player }: { player: BanchoLobbyPlayer }) => {
@@ -91,7 +95,8 @@ class LobbyRef extends EventEmitter<{
       this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
       this.#lobby.on("matchFinished", this.#songFinished.bind(this) as () => void);
       // Invite player
-      this.#lobby.invitePlayer(`#${this.#player.id}`);
+      console.log("Invite player");
+      await this.#lobby.invitePlayer(`#${this.#player.id}`);
    }
 
    async #playersJoined() {
@@ -172,7 +177,7 @@ class LobbyRef extends EventEmitter<{
    }
 
    #playersReady = async () => {
-      this.#lobby?.startMatch(5);
+      this.#lobby?.startMatch(3);
    };
 
    #hpCalc(score?: BanchoLobbyPlayerScore) {
@@ -210,29 +215,30 @@ class LobbyRef extends EventEmitter<{
 
       const candidateMaps = await mapsDb
          .find({
+            mode: this.#mode,
             $or: [
                {
                   "ratings.nm.rating": {
-                     $gt: this.#completedRating,
-                     $lte: this.#completedRating + 100
+                     $gt: this.#completedRating + MIN_STEP,
+                     $lte: this.#completedRating + MAX_STEP
                   }
                },
                {
                   "ratings.hd.rating": {
-                     $gt: this.#completedRating,
-                     $lte: this.#completedRating + 100
+                     $gt: this.#completedRating + MIN_STEP,
+                     $lte: this.#completedRating + MAX_STEP
                   }
                },
                {
                   "ratings.hr.rating": {
-                     $gt: this.#completedRating,
-                     $lte: this.#completedRating + 100
+                     $gt: this.#completedRating + MIN_STEP,
+                     $lte: this.#completedRating + MAX_STEP
                   }
                },
                {
                   "ratings.dt.rating": {
-                     $gt: this.#completedRating,
-                     $lte: this.#completedRating + 100
+                     $gt: this.#completedRating + MIN_STEP,
+                     $lte: this.#completedRating + MAX_STEP
                   }
                }
             ]
@@ -241,14 +247,17 @@ class LobbyRef extends EventEmitter<{
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
-            randMap.ratings[mod].rating >= this.#completedRating &&
-            randMap.ratings[mod].rating <= this.#completedRating + 100
+            randMap.ratings[mod].rating > this.#completedRating + MIN_STEP &&
+            randMap.ratings[mod].rating <= this.#completedRating + MAX_STEP
       );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
       this.#nextRating = randMap.ratings[randMod].rating;
+      this.#lobby.channel.sendMessage(
+         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${this.#nextRating.toFixed()}`
+      );
    }
 
    #matchCompleted = () => {
@@ -260,7 +269,7 @@ class LobbyRef extends EventEmitter<{
          lives: this.#currentHealth,
          completedRating: this.#completedRating
       });
-      setTimeout(this.closeLobby, 8000);
+      setTimeout(this.closeLobby.bind(this), 8000);
    };
 
    async closeLobby() {
