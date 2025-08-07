@@ -33,7 +33,7 @@ class LobbyRef extends EventEmitter {
     * @param {BanchoClient} bancho
     * @param {import("../types/global").GameMode} mode
     */
-   constructor(players, bancho, mode = 'osu') {
+   constructor(players, bancho, mode = "osu") {
       super();
       console.log("Set up ref instance");
       this.#players = players;
@@ -104,7 +104,9 @@ class LobbyRef extends EventEmitter {
          this.#lobby.channel.sendMessage("Pool failed to load, attempting refresh");
          const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
          try {
-            await fetch(`${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}&m=${this.#mode}`)
+            await fetch(
+               `${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}&m=${this.#mode}`
+            )
                .then(data => data.json())
                .then(pool => (this.#mappool = pool))
                .then(() => console.log(this.#mappool));
@@ -122,7 +124,9 @@ class LobbyRef extends EventEmitter {
       const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
       const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
       const lUrl = encodeURIComponent(this.#lobby.name);
-      const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}&m=${this.#mode}`;
+      const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}&m=${
+         this.#mode
+      }`;
       this.#lobby.channel.sendMessage(
          `Mappool can be found here: [${process.env.MAPPOOL_URL}/mappool/lobby?${searchParams} Mappool]`
       );
@@ -168,6 +172,21 @@ class LobbyRef extends EventEmitter {
       });
    }
 
+   #postAvailableMapsString() {
+      const unavailable = this.#lobbyState.bans.concat(this.#lobbyState.picks);
+      const maplist = ["nm", "hd", "hr", "dt", "fm"]
+         .reduce((agg, mod) => {
+            const modMaps = this.#mappool[mod]
+               .map((map, index) => (unavailable.includes(map) ? null : `${mod}${index + 1}`))
+               .filter(v => v)
+               .join(", ");
+            agg.push(modMaps);
+            return agg;
+         }, [])
+         .join(", ");
+      return this.#lobby.channel.sendMessage(`Available maps: ${maplist}`);
+   }
+
    /**
     * @param {BanchoMessage} msg
     */
@@ -195,26 +214,15 @@ class LobbyRef extends EventEmitter {
                   this.#players[this.#lobbyState.nextPlayer].bancho.username
                }`
             );
-            const unavailable = this.#lobbyState.bans.concat(this.#lobbyState.picks);
-            const maplist = ["nm", "hd", "hr", "dt", "fm"]
-               .reduce((agg, mod) => {
-                  const modMaps = this.#mappool[mod]
-                     .map((map, index) => (unavailable.includes(map) ? null : `${mod}${index + 1}`))
-                     .filter(v => v)
-                     .join(", ");
-                  agg.push(modMaps);
-                  return agg;
-               }, [])
-               .join(", ");
-            this.#lobby.channel.sendMessage(`Available maps: ${maplist}`);
+            this.#postAvailableMapsString();
             return;
          }
-      }
-      else if (
-         msg.user.id === this.#players[this.#lobbyState.nextPlayer].bancho.id
-         && msg.message.match(/^(?:nm|hd|hr|dt|fm)[0-4]$/i)) {
-         if (this.#lobbyState.action === 'ban') this.#banMap(command[1]);
-         else if (this.#lobbyState.action === 'tbban') this.#tiebreakerBan(command[1]);
+      } else if (
+         msg.user.id === this.#players[this.#lobbyState.nextPlayer].bancho.id &&
+         msg.message.match(/^(?:nm|hd|hr|dt|fm)[0-4]$/i)
+      ) {
+         if (this.#lobbyState.action === "ban") this.#banMap(command[1]);
+         else if (this.#lobbyState.action === "tbban") this.#tiebreakerBan(command[1]);
          else this.#pickMap(command[1]);
       }
    }
@@ -267,7 +275,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobbyState.picks.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
-      await this.#lobby.setMap(pickedMap.id, this.#mode === 'fruits' ? 'ctb' : this.#mode);
+      await this.#lobby.setMap(pickedMap.id, this.#mode === "fruits" ? "ctb" : this.#mode);
       await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;
@@ -370,6 +378,7 @@ class LobbyRef extends EventEmitter {
             } please ban two maps`
          );
       }
+      this.#postAvailableMapsString();
    }
 
    #matchCompleted() {
