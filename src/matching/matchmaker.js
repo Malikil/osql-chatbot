@@ -79,6 +79,7 @@ class Matchmaker extends EventEmitter {
                   ready: false
                };
             }),
+            mode: lobby[0].mode,
             waitTimer: setTimeout(() => {
                pending.players.forEach(p => {
                   if (p.ready) {
@@ -153,7 +154,8 @@ class Matchmaker extends EventEmitter {
          this.#pendingLobbies.splice(lobbyIndex, 1);
          this.emit(
             "match",
-            lobby.players.map(p => p.player)
+            lobby.players.map(p => p.player),
+            lobby.mode
          );
       } else player.sendMessage("Waiting for opponent");
    }

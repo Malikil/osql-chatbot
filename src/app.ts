@@ -36,9 +36,9 @@ client
       });
    })
    .catch(err => console.error(err));
-matchmaker.on("match", p => {
+matchmaker.on("match", (p, mode) => {
    console.log("Create match with players", p);
-   lobbyManager.createLobby(p.sort((a, b) => a.rating.rating - b.rating.rating));
+   lobbyManager.createLobby(p.sort((a, b) => a.rating.rating - b.rating.rating), mode);
 });
 
 // Clean up when asked to exit

@@ -20,8 +20,9 @@ export interface PendingLobby {
       ready: boolean;
    }[];
    waitTimer: NodeJS.Timeout;
+   mode: GameMode;
 }
 
 export interface MatchmakerEvents {
-   match: [players: MMPlayerObj[]];
+   match: [players: MMPlayerObj[], mode: GameMode];
 }

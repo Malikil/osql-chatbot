@@ -209,24 +209,13 @@ class LobbyRef extends EventEmitter {
             this.#lobby.channel.sendMessage(`Available maps: ${maplist}`);
             return;
          }
-         if (
-            command.length < 2 ||
-            msg.user.id !== this.#players[this.#lobbyState.nextPlayer].bancho.id
-         )
-            return;
-         console.log(command);
-         switch (command[0]) {
-            case "!ban":
-            case "!b":
-               if (this.#lobbyState.action === "ban") this.#banMap(command[1]);
-               else if (this.#lobbyState.action === "tbban") this.#tiebreakerBan(command[1]);
-               break;
-            case "!pick":
-            case "!p":
-               if (this.#lobbyState.action === "pick" || this.#lobbyState.action === "tb")
-                  this.#pickMap(command[1]);
-               break;
-         }
+      }
+      else if (
+         msg.user.id === this.#players[this.#lobbyState.nextPlayer].bancho.id
+         && msg.message.match(/^(?:nm|hd|hr|dt|fm)[0-4]$/i)) {
+         if (this.#lobbyState.action === 'ban') this.#banMap(command[1]);
+         else if (this.#lobbyState.action === 'tbban') this.#tiebreakerBan(command[1]);
+         else this.#pickMap(command[1]);
       }
    }
 
