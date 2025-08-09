@@ -237,7 +237,9 @@ class LobbyRef extends EventEmitter<{
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
       this.#lobby.channel.sendMessage(
-         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[randMod].rating}`
+         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
+            randMod
+         ].rating.toFixed()}`
       );
    }
 
