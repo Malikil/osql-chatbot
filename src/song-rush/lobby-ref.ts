@@ -106,29 +106,6 @@ class LobbyRef extends EventEmitter<{
 
    async #playersJoined() {
       console.log(`${this.#lobby?.id} - All players joined`);
-      // Get initial rating value
-      const minValues = await mapsDb
-         .aggregate<{
-            minNm: number;
-            minHd: number;
-            minHr: number;
-            minDt: number;
-         }>([
-            { $match: { mode: this.#mode } },
-            {
-               $group: {
-                  _id: null,
-                  minNm: { $min: "$ratings.nm.rating" },
-                  minHd: { $min: "$ratings.hd.rating" },
-                  minHr: { $min: "$ratings.hr.rating" },
-                  minDt: { $min: "$ratings.dt.rating" }
-               }
-            }
-         ])
-         .next();
-      if (!minValues) throw new Error("No minimum values returned from database");
-      this.#targetRating =
-         Math.min(minValues.minNm, minValues.minHd, minValues.minHr, minValues.minDt) - 1;
       // Get the map
       this.#nextSong();
    }
