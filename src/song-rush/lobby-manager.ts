@@ -16,30 +16,26 @@ class LobbyManager {
       const lobby = new LobbyRef(player, this.#bancho, mode);
       lobby.startMatch();
       this.#activeLobbies.push(lobby);
-      const finished = () => {
+      const finished = (mp: number) => {
          const i = this.#activeLobbies.findIndex(l => l === lobby);
          this.#activeLobbies.splice(i, 1);
          lobby.off("closed", finished);
-         lobby.removeAllListeners("paused").removeAllListeners("finished");
-      };
-      lobby.on("closed", finished);
-      const submit = (
-         mp: number,
-         {
-            player,
-            mode,
-            lives,
-            completedRating
-         }: { player: number; mode: GameMode; lives: number; completedRating: number }
-      ) => {
+         lobby.removeAllListeners();
          fetch(`${process.env.INTERNAL_URL}/api/db/pve`, {
             method: "POST",
             body: JSON.stringify({ mp }),
             headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH || ""]]
          }).then(() => console.log("Results submitted"));
       };
-      lobby.once("paused", submit);
-      lobby.once("finished", submit);
+      lobby.on("closed", finished);
+      // const submit = (
+      //    mp: number,
+      //    { player, mode, lives }: { player: number; mode: GameMode; lives: number }
+      // ) => {
+
+      // };
+      // lobby.once("paused", submit);
+      // lobby.once("finished", submit);
    }
 
    reinvite(player: BanchoUser) {

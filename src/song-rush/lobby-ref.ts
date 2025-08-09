@@ -11,10 +11,9 @@ import {
 import { Mode } from "nodesu";
 import EventEmitter from "node:events";
 import { GameMode, SimpleMod } from "../types/global";
-import { mapsDb } from "../db/connection";
+import { mapsDb, playersDb } from "../db/connection";
 
-const MIN_STEP = 10;
-const MAX_STEP = 110;
+const STEP_SIZE = 10;
 
 class LobbyRef extends EventEmitter<{
    finished: [
@@ -23,7 +22,6 @@ class LobbyRef extends EventEmitter<{
          player: number;
          mode: GameMode;
          lives: number;
-         completedRating: number;
       }
    ];
    paused: [
@@ -32,18 +30,18 @@ class LobbyRef extends EventEmitter<{
          player: number;
          mode: GameMode;
          lives: number;
-         completedRating: number;
       }
    ];
-   closed: [];
+   closed: [mp: number];
 }> {
    #bancho;
    #lobby?: BanchoLobby;
    #mode;
    #player;
    #interruptHandler;
-   #completedRating;
-   #nextRating;
+   #targetRating;
+   #ratingDeviation;
+   #expandedRating;
    #currentHealth;
 
    constructor(player: BanchoUser, bancho: BanchoClient, mode: GameMode = "osu") {
@@ -52,8 +50,9 @@ class LobbyRef extends EventEmitter<{
       this.#bancho = bancho;
       this.#mode = mode;
       this.#player = player;
-      this.#completedRating = 0;
-      this.#nextRating = 0;
+      this.#targetRating = 1500;
+      this.#ratingDeviation = 350;
+      this.#expandedRating = 0;
       this.#currentHealth = 50;
       this.#interruptHandler = () => {
          this.#lobby?.channel.sendMessage(
@@ -67,6 +66,12 @@ class LobbyRef extends EventEmitter<{
       // There must be a cleaner way to close lobbies when the program is trying to exit than
       // watching for the event here
       process.on("SIGTERM", this.#interruptHandler);
+      // Fetch the rating information for this player
+      const dbplayer = await playersDb.findOne({ osuid: this.#player.id });
+      if (dbplayer) {
+         this.#targetRating = dbplayer[this.#mode].pve.rating;
+         this.#ratingDeviation = dbplayer[this.#mode].pve.rd;
+      }
       // Create the lobby
       const mpChannel = await this.#bancho.createLobby(
          `Score Rush ${this.#player.username} - ${Date.now()}`
@@ -122,7 +127,7 @@ class LobbyRef extends EventEmitter<{
          ])
          .next();
       if (!minValues) throw new Error("No minimum values returned from database");
-      this.#completedRating =
+      this.#targetRating =
          Math.min(minValues.minNm, minValues.minHd, minValues.minHr, minValues.minDt) - 1;
       // Get the map
       this.#nextSong();
@@ -140,8 +145,7 @@ class LobbyRef extends EventEmitter<{
             this.emit("paused", lobbyid, {
                player: this.#player.id,
                mode: this.#mode,
-               lives: this.#currentHealth,
-               completedRating: this.#completedRating
+               lives: this.#currentHealth
             });
             this.closeLobby();
          };
@@ -196,7 +200,7 @@ class LobbyRef extends EventEmitter<{
 
    #songFinished(scores: BanchoLobbyPlayerScore[]) {
       console.log(scores);
-      this.#completedRating = this.#nextRating;
+      this.#expandedRating += STEP_SIZE;
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
       const oldHealth = this.#currentHealth;
       // Calculate the new health value
@@ -219,26 +223,26 @@ class LobbyRef extends EventEmitter<{
             $or: [
                {
                   "ratings.nm.rating": {
-                     $gt: this.#completedRating + MIN_STEP,
-                     $lte: this.#completedRating + MAX_STEP
+                     $gt: this.#targetRating - this.#ratingDeviation,
+                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
                {
                   "ratings.hd.rating": {
-                     $gt: this.#completedRating + MIN_STEP,
-                     $lte: this.#completedRating + MAX_STEP
+                     $gt: this.#targetRating - this.#ratingDeviation,
+                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
                {
                   "ratings.hr.rating": {
-                     $gt: this.#completedRating + MIN_STEP,
-                     $lte: this.#completedRating + MAX_STEP
+                     $gt: this.#targetRating - this.#ratingDeviation,
+                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
                {
                   "ratings.dt.rating": {
-                     $gt: this.#completedRating + MIN_STEP,
-                     $lte: this.#completedRating + MAX_STEP
+                     $gt: this.#targetRating - this.#ratingDeviation,
+                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                }
             ]
@@ -247,16 +251,16 @@ class LobbyRef extends EventEmitter<{
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
-            randMap.ratings[mod].rating > this.#completedRating + MIN_STEP &&
-            randMap.ratings[mod].rating <= this.#completedRating + MAX_STEP
+            randMap.ratings[mod].rating > this.#targetRating - this.#ratingDeviation &&
+            randMap.ratings[mod].rating <
+               this.#targetRating + this.#expandedRating + this.#ratingDeviation
       );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
-      this.#nextRating = randMap.ratings[randMod].rating;
       this.#lobby.channel.sendMessage(
-         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${this.#nextRating.toFixed()}`
+         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[randMod].rating}`
       );
    }
 
@@ -266,13 +270,13 @@ class LobbyRef extends EventEmitter<{
       this.emit("finished", this.#lobby.id, {
          player: this.#player.id,
          mode: this.#mode,
-         lives: this.#currentHealth,
-         completedRating: this.#completedRating
+         lives: this.#currentHealth
       });
       setTimeout(this.closeLobby.bind(this), 8000);
    };
 
    async closeLobby() {
+      const mp = this.#lobby?.id || 0;
       process.off("SIGTERM", this.#interruptHandler);
       try {
          this.#lobby?.removeAllListeners();
@@ -282,7 +286,7 @@ class LobbyRef extends EventEmitter<{
          console.warn("Couldn't clean up properly");
          console.warn(err);
       } finally {
-         this.emit("closed");
+         this.emit("closed", mp);
       }
    }
 
