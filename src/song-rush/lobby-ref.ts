@@ -43,6 +43,8 @@ class LobbyRef extends EventEmitter<{
    #ratingDeviation;
    #expandedRating;
    #currentHealth;
+   #lastMod: SimpleMod;
+   #songHistory: number[];
 
    constructor(player: BanchoUser, bancho: BanchoClient, mode: GameMode = "osu") {
       super();
@@ -54,6 +56,8 @@ class LobbyRef extends EventEmitter<{
       this.#ratingDeviation = 350;
       this.#expandedRating = 0;
       this.#currentHealth = 50;
+      this.#lastMod = "nm";
+      this.#songHistory = [];
       this.#interruptHandler = () => {
          this.#lobby?.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
@@ -77,7 +81,7 @@ class LobbyRef extends EventEmitter<{
          `Score Rush ${this.#player.username} - ${Date.now()}`
       );
       this.#lobby = mpChannel.lobby;
-      mpChannel.on("message", this.#handleLobbyMessage.bind(this));
+      mpChannel.on("message", this.#handleLobbyMessage);
 
       console.log(`Created ${this.#mode} lobby: ${mpChannel.name}`);
       await this.#lobby.setSettings(
@@ -119,6 +123,7 @@ class LobbyRef extends EventEmitter<{
          this.#lobby.channel.sendMessage("PvE player left. Lobby will close");
          this.#lobby.startTimer(60);
          const pauseLobby = () => {
+            this.#lobby?.off("timerEnded", pauseLobby);
             this.emit("paused", lobbyid, {
                player: this.#player.id,
                mode: this.#mode,
@@ -141,7 +146,7 @@ class LobbyRef extends EventEmitter<{
       }
    }
 
-   async #handleLobbyMessage(msg: BanchoMessage) {
+   #handleLobbyMessage = async (msg: BanchoMessage) => {
       if (msg.user.username === this.#player.username) {
          if (msg.content === "skip") {
             if (this.#currentHealth < 2)
@@ -155,7 +160,7 @@ class LobbyRef extends EventEmitter<{
             }
          }
       }
-   }
+   };
 
    #playersReady = async () => {
       this.#lobby?.startMatch(3);
@@ -204,30 +209,31 @@ class LobbyRef extends EventEmitter<{
                      $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
-               {
+               this.#lastMod !== "hd" && {
                   "ratings.hd.rating": {
                      $gt: this.#targetRating - this.#ratingDeviation,
                      $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
-               {
+               this.#lastMod !== "hr" && {
                   "ratings.hr.rating": {
                      $gt: this.#targetRating - this.#ratingDeviation,
                      $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                },
-               {
+               this.#lastMod !== "dt" && {
                   "ratings.dt.rating": {
                      $gt: this.#targetRating - this.#ratingDeviation,
                      $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
                   }
                }
-            ]
+            ].filter(v => v) as any
          })
          .toArray();
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
+            (mod !== this.#lastMod || mod === "nm") &&
             randMap.ratings[mod].rating > this.#targetRating - this.#ratingDeviation &&
             randMap.ratings[mod].rating <
                this.#targetRating + this.#expandedRating + this.#ratingDeviation
@@ -236,6 +242,7 @@ class LobbyRef extends EventEmitter<{
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
+      this.#lastMod = randMod;
       this.#lobby.channel.sendMessage(
          `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
             randMod
@@ -246,20 +253,24 @@ class LobbyRef extends EventEmitter<{
    #matchCompleted = () => {
       if (!this.#lobby) throw new Error("Match finished but no lobby");
       this.#lobby.channel.sendMessage("Lobby finished - submitting result to server");
+      this.#lobby.removeAllListeners("playerLeft");
       this.emit("finished", this.#lobby.id, {
          player: this.#player.id,
          mode: this.#mode,
          lives: this.#currentHealth
       });
-      setTimeout(this.closeLobby.bind(this), 8000);
+      setTimeout(this.closeLobby.bind(this), 15000);
    };
 
    async closeLobby() {
       const mp = this.#lobby?.id || 0;
       process.off("SIGTERM", this.#interruptHandler);
       try {
+         this.#lobby?.off("allPlayersReady", this.#playersReady);
+         // I actually can't guarantee banchojs doesn't maintain its own listeners. It probably *is* bad practice to remove
+         // listeners here if I haven't explicitly added them myself.
          this.#lobby?.removeAllListeners();
-         this.#lobby?.channel.removeAllListeners();
+         this.#lobby?.channel.off("message", this.#handleLobbyMessage);
          await this.#lobby?.closeLobby().catch(err => console.warn(err));
       } catch (err) {
          console.warn("Couldn't clean up properly");
