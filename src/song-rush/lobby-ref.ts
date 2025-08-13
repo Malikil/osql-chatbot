@@ -12,6 +12,7 @@ import { Mode } from "nodesu";
 import EventEmitter from "node:events";
 import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb, playersDb } from "../db/connection";
+import { DbBeatmap } from "../types/database.beatmap";
 
 const STEP_SIZE = 10;
 
@@ -43,8 +44,13 @@ class LobbyRef extends EventEmitter<{
    #ratingDeviation;
    #expandedRating;
    #currentHealth;
-   #lastMod: SimpleMod;
-   #songHistory: number[];
+   #songHistory: Set<number>;
+   #setHistory: Set<number>;
+   #currentPick: {
+      id: number;
+      setid: number;
+      mod: SimpleMod;
+   };
 
    constructor(player: BanchoUser, bancho: BanchoClient, mode: GameMode = "osu") {
       super();
@@ -56,8 +62,12 @@ class LobbyRef extends EventEmitter<{
       this.#ratingDeviation = 350;
       this.#expandedRating = 0;
       this.#currentHealth = 50;
-      this.#lastMod = "nm";
-      this.#songHistory = [];
+      this.#songHistory = new Set();
+      this.#setHistory = new Set();
+      // Current pick will be set whenever nextMap runs. The only time it's referenced is after a map finishes.
+      // If I check for it myself all I would do is throw an error to make typescript stop complaining.
+      // A default null reference error will serve literally the exact same purpose
+      this.#currentPick = { mod: "nm" } as any;
       this.#interruptHandler = () => {
          this.#lobby?.channel.sendMessage(
             "SIGTERM - Process killed. All active lobbies have been abandoned."
@@ -182,6 +192,8 @@ class LobbyRef extends EventEmitter<{
 
    #songFinished(scores: BanchoLobbyPlayerScore[]) {
       console.log(scores);
+      this.#songHistory.add(this.#currentPick.id);
+      this.#setHistory.add(this.#currentPick.setid);
       this.#expandedRating += STEP_SIZE;
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
       const oldHealth = this.#currentHealth;
@@ -199,41 +211,62 @@ class LobbyRef extends EventEmitter<{
    async #nextSong() {
       if (!this.#lobby) throw new Error("Next song but no lobby found");
 
-      const candidateMaps = await mapsDb
-         .find({
-            mode: this.#mode,
-            $or: [
-               {
-                  "ratings.nm.rating": {
-                     $gt: this.#targetRating - this.#ratingDeviation,
-                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+      const filteredMaps = {
+         set: [] as DbBeatmap[],
+         map: [] as DbBeatmap[]
+      };
+      const candidateMaps: DbBeatmap[] = (
+         await mapsDb
+            .find({
+               mode: this.#mode,
+               $or: [
+                  {
+                     "ratings.nm.rating": {
+                        $gt: this.#targetRating - this.#ratingDeviation,
+                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                     }
+                  },
+                  this.#currentPick.mod !== "hd" && {
+                     "ratings.hd.rating": {
+                        $gt: this.#targetRating - this.#ratingDeviation,
+                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                     }
+                  },
+                  this.#currentPick.mod !== "hr" && {
+                     "ratings.hr.rating": {
+                        $gt: this.#targetRating - this.#ratingDeviation,
+                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                     }
+                  },
+                  this.#currentPick.mod !== "dt" && {
+                     "ratings.dt.rating": {
+                        $gt: this.#targetRating - this.#ratingDeviation,
+                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                     }
                   }
-               },
-               this.#lastMod !== "hd" && {
-                  "ratings.hd.rating": {
-                     $gt: this.#targetRating - this.#ratingDeviation,
-                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                  }
-               },
-               this.#lastMod !== "hr" && {
-                  "ratings.hr.rating": {
-                     $gt: this.#targetRating - this.#ratingDeviation,
-                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                  }
-               },
-               this.#lastMod !== "dt" && {
-                  "ratings.dt.rating": {
-                     $gt: this.#targetRating - this.#ratingDeviation,
-                     $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                  }
-               }
-            ].filter(v => v) as any
-         })
-         .toArray();
+               ].filter(v => v) as any
+            })
+            .toArray()
+      ).filter(map => {
+         // If the map has already been used somehow, set it aside
+         if (this.#songHistory.has(map.id)) {
+            filteredMaps.map.push(map);
+            return false;
+         } else if (this.#setHistory.has(map.setid)) {
+            filteredMaps.set.push(map);
+            return false;
+         } else return true;
+      });
+      // Make sure there are enough candidate maps
+      // Re-add maps from matched sets first
+      if (candidateMaps.length < 1) candidateMaps.push(...filteredMaps.set);
+      // Re-add duplicate maps if still required
+      if (candidateMaps.length < 1) candidateMaps.push(...filteredMaps.map);
+
       const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
-            (mod !== this.#lastMod || mod === "nm") &&
+            (mod !== this.#currentPick.mod || mod === "nm") &&
             randMap.ratings[mod].rating > this.#targetRating - this.#ratingDeviation &&
             randMap.ratings[mod].rating <
                this.#targetRating + this.#expandedRating + this.#ratingDeviation
@@ -242,7 +275,7 @@ class LobbyRef extends EventEmitter<{
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
-      this.#lastMod = randMod;
+      this.#currentPick = { id: randMap.id, setid: randMap.setid, mod: randMod };
       this.#lobby.channel.sendMessage(
          `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
             randMod
