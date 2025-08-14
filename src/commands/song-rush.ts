@@ -1,7 +1,7 @@
 import { PveCommand } from "../types/commands";
 import { GameMode } from "../types/global";
 
-export const escalatingLobby: PveCommand = async (msg, lobbyManager) => {
+export const songRushLobby: PveCommand = async (msg, lobbyManager) => {
    // Figure out the gamemode
    let mode = msg.message.split(" ")[1] as GameMode | "ctb";
    if (mode === "ctb") mode = "fruits";

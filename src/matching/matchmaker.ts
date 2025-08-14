@@ -1,26 +1,18 @@
-const { BanchoUser } = require("bancho.js");
-const EventEmitter = require("node:events");
+import { MatchmakerEvents, MMPlayerObj, PendingLobby, QueuedPlayer } from "../types/matchmaking";
+import { BanchoUser } from "bancho.js";
+import EventEmitter from "node:events";
 
-/**
- * @param {import("../types/matchmaking").QueuedPlayer} p1
- * @param {import("../types/matchmaking").QueuedPlayer} p2
- */
-const withinRange = (p1, p2 = {}) => {
-   if (p1.mode !== p2.mode) return false;
+const withinRange = (p1: QueuedPlayer, p2: QueuedPlayer | null) => {
+   if (!p2 || p1.mode !== p2.mode) return false;
    const diff = Math.abs(p1.rating - p2.rating);
    return p1.range > diff && p2.range > diff;
 };
 
-/**
- * @extends {EventEmitter<import("../types/matchmaking").MatchmakerEvents>}
- */
-class Matchmaker extends EventEmitter {
-   /** @type {import("../types/matchmaking").QueuedPlayer[]} */
-   #playerQueue;
+class Matchmaker extends EventEmitter<MatchmakerEvents> {
+   #playerQueue: QueuedPlayer[];
    #options;
    #queueTimerId;
-   /** @type {import("../types/matchmaking").PendingLobby[]} */
-   #pendingLobbies;
+   #pendingLobbies: PendingLobby[];
 
    /**
     * @param {object} options
@@ -29,7 +21,10 @@ class Matchmaker extends EventEmitter {
     * How much should the rating range increase per matching attempt. A number argument will increase
     * by a flat amount. Or pass a function which returns the new search range value.
     */
-   constructor(options = {}) {
+   constructor(options: {
+      searchInterval?: number;
+      searchRangeIncrement?: number | ((p: QueuedPlayer) => number)
+   } = {}) {
       super();
       this.#playerQueue = [];
       this.#pendingLobbies = [];
@@ -45,12 +40,11 @@ class Matchmaker extends EventEmitter {
    }
 
    #attemptCreateMatches() {
-      /** @type {import("../types/matchmaking").QueuedPlayer[][]} */
-      const lobbies = [];
+      const lobbies: QueuedPlayer[][] = [];
       this.#playerQueue = this.#playerQueue
          .filter((player, iPlayer, arr) => {
             // If the player is already in a lobby, skip them
-            if (lobbies.find(l => l.find(p => p.id === player.id))) return false;
+            if (lobbies.find(l => l.find(p => p.player.bancho.id === player.player.bancho.id))) return false;
 
             // Should the player be matched?
             // Look for players later in the array (to avoid attempting to match the same player twice)
@@ -92,7 +86,6 @@ class Matchmaker extends EventEmitter {
                         console.log(`Add ${prevTargetRange.player.bancho.username} to queue`);
                         this.#playerQueue.push(prevTargetRange);
                         console.log(this.#playerQueue);
-                        //this.#playerQueue.sort((a, b) => a.rating - b.rating);
                      }
                   } else p.player.bancho.sendMessage("Lobby expired");
                });
@@ -105,10 +98,7 @@ class Matchmaker extends EventEmitter {
       });
    }
 
-   /**
-    * @param {import("../types/matchmaking").MMPlayerObj} player
-    */
-   searchForMatch(player) {
+   searchForMatch(player: MMPlayerObj) {
       console.log(`Add ${player.bancho.username} to queue`);
       if (this.#playerQueue.find(p => p.player.bancho.id === player.bancho.id)) {
          console.log("Player already in queue");
@@ -121,14 +111,10 @@ class Matchmaker extends EventEmitter {
          range: player.rating.rd,
          mode: player.mode
       });
-      //this.#playerQueue.sort((a, b) => a.rating - b.rating);
       console.log(this.#playerQueue);
    }
 
-   /**
-    * @param {BanchoUser} player
-    */
-   unqueue(player) {
+   unqueue(player: BanchoUser) {
       console.log(`Remove ${player.username} from queue`);
       const playerIndex = this.#playerQueue.findIndex(p => p.player.bancho.id === player.id);
       if (playerIndex >= 0) {
@@ -137,17 +123,14 @@ class Matchmaker extends EventEmitter {
       }
    }
 
-   /**
-    * @param {BanchoUser} player
-    */
-   async playerReady(player) {
+   async playerReady(player: BanchoUser) {
       const lobbyIndex = this.#pendingLobbies.findIndex(l =>
-         l.players.find(p => p.player.bancho.id === player.id)
+         l.players.some(p => p.player.bancho.id === player.id)
       );
       if (lobbyIndex < 0) return player.sendMessage("No lobby found");
       const lobby = this.#pendingLobbies[lobbyIndex];
 
-      const lobbyPlayer = lobby.players.find(p => p.player.bancho.id === player.id);
+      const lobbyPlayer = lobby.players.find(p => p.player.bancho.id === player.id)!;
       lobbyPlayer.ready = true;
       if (lobby.players.every(p => p.ready)) {
          clearTimeout(lobby.waitTimer);
@@ -163,6 +146,10 @@ class Matchmaker extends EventEmitter {
    end() {
       clearInterval(this.#queueTimerId);
    }
+
+   playersInQueue() {
+      return this.#playerQueue.length;
+   }
 }
 
-module.exports = Matchmaker;
+export default Matchmaker;

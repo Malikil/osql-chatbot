@@ -4,7 +4,8 @@ import PveManager from "../song-rush/lobby-manager";
 import Matchmaker from "../matching/matchmaker";
 import { BanchoCommand } from "../types/commands";
 import pvp from "./pvp";
-import { escalatingLobby } from "./song-rush";
+import { songRushLobby } from "./song-rush";
+import { countActiveLobbies, countQueuedPlayers } from "./admin";
 
 export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveManager: PveManager) {
    const commands: [string, any][] = [
@@ -17,10 +18,17 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveMana
       ["invite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["reinvite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["lobby", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
-      ["pve", (msg: PrivateMessage) => escalatingLobby(msg, pveManager)]
+      ["pve", (msg: PrivateMessage) => songRushLobby(msg, pveManager)],
+      [
+         "counts",
+         (msg: PrivateMessage) => {
+            countActiveLobbies(msg, lobbyManager);
+            countQueuedPlayers(msg, matchmaker);
+         }
+      ]
    ];
    commands.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-   const commandList = "Commands list: help, q, unq, lobby";
+   const commandList = "Commands list: help, q, unq, lobby, pve";
    return {
       commands: msg => msg.user.sendMessage(commandList),
       help: msg => msg.user.sendMessage(commandList),
