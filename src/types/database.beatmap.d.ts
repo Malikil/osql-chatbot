@@ -8,7 +8,7 @@ export interface DbBeatmap {
    length: number;
    bpm: number;
    cs: number;
-   ar: number;
+   ar?: number;
    od: number;
    stars: number;
    ratings: Record<SimpleMod, Rating>;
@@ -16,7 +16,7 @@ export interface DbBeatmap {
    artist: string;
    title: string;
    mapper: string;
-   mode: GameMode;
+   convert?: boolean;
    maxCombo: number;
    noteCount: {
       circles: number;

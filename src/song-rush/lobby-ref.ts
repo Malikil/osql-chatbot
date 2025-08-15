@@ -216,9 +216,8 @@ class LobbyRef extends EventEmitter<{
          map: [] as DbBeatmap[]
       };
       const candidateMaps: DbBeatmap[] = (
-         await mapsDb
+         await mapsDb[this.#mode]
             .find({
-               mode: this.#mode,
                $or: [
                   {
                      "ratings.nm.rating": {
@@ -267,8 +266,8 @@ class LobbyRef extends EventEmitter<{
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
             (mod !== this.#currentPick.mod || mod === "nm") &&
-            randMap.ratings[mod].rating > this.#targetRating - this.#ratingDeviation &&
-            randMap.ratings[mod].rating <
+            randMap.ratings[mod]?.rating > this.#targetRating - this.#ratingDeviation &&
+            randMap.ratings[mod]?.rating <
                this.#targetRating + this.#expandedRating + this.#ratingDeviation
       );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
