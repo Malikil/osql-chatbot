@@ -14,7 +14,7 @@ import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 
-const STEP_SIZE = 10;
+const STEP_SIZE = 50;
 
 class LobbyRef extends EventEmitter<{
    finished: [
@@ -49,6 +49,7 @@ class LobbyRef extends EventEmitter<{
    #currentPick: {
       id: number;
       setid: number;
+      rating: number;
       mod: SimpleMod;
    };
 
@@ -194,7 +195,11 @@ class LobbyRef extends EventEmitter<{
       console.log(scores);
       this.#songHistory.add(this.#currentPick.id);
       this.#setHistory.add(this.#currentPick.setid);
-      this.#expandedRating += STEP_SIZE;
+      // If the current song was close to the upper limit, raise the upper limit
+      this.#expandedRating = Math.max(
+         this.#currentPick.rating - this.#targetRating + STEP_SIZE,
+         this.#expandedRating
+      );
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
       const oldHealth = this.#currentHealth;
       // Calculate the new health value
@@ -275,7 +280,12 @@ class LobbyRef extends EventEmitter<{
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
-      this.#currentPick = { id: randMap.id, setid: randMap.setid, mod: randMod };
+      this.#currentPick = {
+         id: randMap.id,
+         setid: randMap.setid,
+         mod: randMod,
+         rating: randMap.ratings[randMod].rating
+      };
       this.#lobby.channel.sendMessage(
          `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
             randMod
