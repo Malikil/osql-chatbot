@@ -254,7 +254,7 @@ class LobbyRef extends EventEmitter<{
       const candidateMaps: DbBeatmap[] = (await mapsDb[this.#mode].find(filter).toArray()).filter(
          map => {
             // If the map has already been used in any way, set it aside
-            if (this.#songHistory.has(map.id)) {
+            if (this.#songHistory.has(map._id)) {
                filteredMaps.map.push(map);
                return false;
             } else if (this.#setHistory.has(map.setid)) {
@@ -279,9 +279,9 @@ class LobbyRef extends EventEmitter<{
       );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
       // Set the map and update the next rating range
-      await this.#lobby.setMap(randMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
+      await this.#lobby.setMap(randMap._id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod);
-      this.#currentPick = { id: randMap.id, setid: randMap.setid, mod: randMod };
+      this.#currentPick = { id: randMap._id, setid: randMap.setid, mod: randMod };
       this.#lobby.channel.sendMessage(
          `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
             randMod

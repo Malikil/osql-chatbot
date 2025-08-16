@@ -2,7 +2,7 @@ import { GameMode, SimpleMod, Rating } from "./global";
 
 export interface DbBeatmap {
    // BeatmapVersion
-   id: number;
+   _id: number;
    setid: number;
    version: string;
    length: number;
