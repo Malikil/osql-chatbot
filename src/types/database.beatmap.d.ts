@@ -2,13 +2,13 @@ import { GameMode, SimpleMod, Rating } from "./global";
 
 export interface DbBeatmap {
    // BeatmapVersion
-   id: number;
+   _id: number;
    setid: number;
    version: string;
    length: number;
    bpm: number;
    cs: number;
-   ar: number;
+   ar?: number;
    od: number;
    stars: number;
    ratings: Record<SimpleMod, Rating>;
@@ -16,7 +16,7 @@ export interface DbBeatmap {
    artist: string;
    title: string;
    mapper: string;
-   mode: GameMode;
+   convert?: boolean;
    maxCombo: number;
    noteCount: {
       circles: number;

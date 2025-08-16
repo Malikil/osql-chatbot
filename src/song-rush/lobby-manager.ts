@@ -11,9 +11,10 @@ class LobbyManager {
       this.#bancho = bancho;
    }
 
-   createLobby(player: BanchoUser, mode: GameMode = "osu") {
+   createLobby(player: BanchoUser, mode: GameMode = "osu", maniamode: "4k" | "7k" | null = null) {
       console.log("Create score rush with player", player.username);
       const lobby = new LobbyRef(player, this.#bancho, mode);
+      if (maniamode) lobby.setManiaMode(maniamode);
       lobby.startMatch();
       this.#activeLobbies.push(lobby);
       const finished = (mp: number) => {

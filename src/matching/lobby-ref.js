@@ -9,6 +9,7 @@ const {
    BanchoLobbyPlayer,
    BanchoUser
 } = require("bancho.js");
+const { Mode } = require("nodesu");
 const EventEmitter = require("node:events");
 
 const BO = 7;
@@ -275,7 +276,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobbyState.picks.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
-      await this.#lobby.setMap(pickedMap.id, this.#mode === "fruits" ? "ctb" : this.#mode);
+      await this.#lobby.setMap(pickedMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;

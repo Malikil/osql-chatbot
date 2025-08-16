@@ -14,5 +14,14 @@ const client = new MongoClient(process.env.MONGO_CONNECTION || "", {
 
 export const db = client.db("packchallenge");
 export const historyDb = db.collection<DbHistory>("history");
-export const mapsDb = db.collection<DbBeatmap>("maps");
+export const osuDb = db.collection<DbBeatmap>("osu");
+export const taikoDb = db.collection<DbBeatmap>("taiko");
+export const fruitsDb = db.collection<DbBeatmap>("fruits");
+export const maniaDb = db.collection<DbBeatmap>("mania");
+export const mapsDb = {
+   osu: osuDb,
+   taiko: taikoDb,
+   fruits: fruitsDb,
+   mania: maniaDb
+} as const;
 export const playersDb = db.collection<DbPlayer>("players");

@@ -32,6 +32,10 @@ class LobbyManager {
       const lobby = this.#activeLobbies.find(l => l.hasPlayer(player));
       lobby?.invite(player);
    }
+
+   lobbyCount() {
+      return this.#activeLobbies.length;
+   }
 }
 
 export default LobbyManager;

@@ -2,8 +2,8 @@ import { Rating } from "./global";
 
 export interface RatingSet {
    nm: Rating;
-   hd: Rating;
-   hr: Rating;
+   hd?: Rating;
+   hr?: Rating;
    dt: Rating;
 }
 
