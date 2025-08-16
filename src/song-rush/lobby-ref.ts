@@ -13,6 +13,7 @@ import EventEmitter from "node:events";
 import { GameMode, SimpleMod } from "../types/global";
 import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
+import { Filter } from "mongodb";
 
 const STEP_SIZE = 10;
 
@@ -38,6 +39,7 @@ class LobbyRef extends EventEmitter<{
    #bancho;
    #lobby?: BanchoLobby;
    #mode;
+   #maniamode: "4k" | "7k" | null;
    #player;
    #interruptHandler;
    #targetRating;
@@ -57,6 +59,7 @@ class LobbyRef extends EventEmitter<{
       console.log("Set up ref instance");
       this.#bancho = bancho;
       this.#mode = mode;
+      this.#maniamode = null;
       this.#player = player;
       this.#targetRating = 1500;
       this.#ratingDeviation = 350;
@@ -74,6 +77,10 @@ class LobbyRef extends EventEmitter<{
          );
          this.closeLobby();
       };
+   }
+
+   setManiaMode(maniamode: "4k" | "7k") {
+      this.#maniamode = maniamode;
    }
 
    async startMatch() {
@@ -215,47 +222,47 @@ class LobbyRef extends EventEmitter<{
          set: [] as DbBeatmap[],
          map: [] as DbBeatmap[]
       };
-      const candidateMaps: DbBeatmap[] = (
-         await mapsDb[this.#mode]
-            .find({
-               $or: [
-                  {
-                     "ratings.nm.rating": {
-                        $gt: this.#targetRating - this.#ratingDeviation,
-                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                     }
-                  },
-                  this.#currentPick.mod !== "hd" && {
-                     "ratings.hd.rating": {
-                        $gt: this.#targetRating - this.#ratingDeviation,
-                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                     }
-                  },
-                  this.#currentPick.mod !== "hr" && {
-                     "ratings.hr.rating": {
-                        $gt: this.#targetRating - this.#ratingDeviation,
-                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                     }
-                  },
-                  this.#currentPick.mod !== "dt" && {
-                     "ratings.dt.rating": {
-                        $gt: this.#targetRating - this.#ratingDeviation,
-                        $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
-                     }
-                  }
-               ].filter(v => v) as any
-            })
-            .toArray()
-      ).filter(map => {
-         // If the map has already been used somehow, set it aside
-         if (this.#songHistory.has(map.id)) {
-            filteredMaps.map.push(map);
-            return false;
-         } else if (this.#setHistory.has(map.setid)) {
-            filteredMaps.set.push(map);
-            return false;
-         } else return true;
-      });
+      const filter: Filter<DbBeatmap> = {
+         $or: [
+            {
+               "ratings.nm.rating": {
+                  $gt: this.#targetRating - this.#ratingDeviation,
+                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+               }
+            },
+            this.#currentPick.mod !== "hd" && {
+               "ratings.hd.rating": {
+                  $gt: this.#targetRating - this.#ratingDeviation,
+                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+               }
+            },
+            this.#currentPick.mod !== "hr" && {
+               "ratings.hr.rating": {
+                  $gt: this.#targetRating - this.#ratingDeviation,
+                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+               }
+            },
+            this.#currentPick.mod !== "dt" && {
+               "ratings.dt.rating": {
+                  $gt: this.#targetRating - this.#ratingDeviation,
+                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+               }
+            }
+         ].filter(v => v) as Filter<DbBeatmap>[]
+      };
+      if (this.#mode === "mania" && this.#maniamode) filter.cs = this.#maniamode === "7k" ? 7 : 4;
+      const candidateMaps: DbBeatmap[] = (await mapsDb[this.#mode].find(filter).toArray()).filter(
+         map => {
+            // If the map has already been used in any way, set it aside
+            if (this.#songHistory.has(map.id)) {
+               filteredMaps.map.push(map);
+               return false;
+            } else if (this.#setHistory.has(map.setid)) {
+               filteredMaps.set.push(map);
+               return false;
+            } else return true;
+         }
+      );
       // Make sure there are enough candidate maps
       // Re-add maps from matched sets first
       if (candidateMaps.length < 1) candidateMaps.push(...filteredMaps.set);

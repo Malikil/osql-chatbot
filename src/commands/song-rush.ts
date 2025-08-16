@@ -5,6 +5,11 @@ export const songRushLobby: PveCommand = async (msg, lobbyManager) => {
    // Figure out the gamemode
    let mode = msg.message.split(" ")[1] as GameMode | "ctb";
    if (mode === "ctb") mode = "fruits";
-   if (!["osu", "fruits", "taiko"].includes(mode)) mode = "osu";
-   lobbyManager.createLobby(msg.user, mode);
+   let maniamode = "";
+   if (["4k", "7k"].includes(mode)) {
+      maniamode = mode;
+      mode = "mania";
+   }
+   if (!["osu", "fruits", "taiko", "mania"].includes(mode)) mode = "osu";
+   lobbyManager.createLobby(msg.user, mode, maniamode);
 };
