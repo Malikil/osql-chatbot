@@ -15,7 +15,7 @@ import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 
-const STEP_SIZE = 50;
+const STEP_SIZE = 20;
 
 class LobbyRef extends EventEmitter<{
    finished: [
@@ -199,13 +199,12 @@ class LobbyRef extends EventEmitter<{
    }
 
    #songFinished(scores: BanchoLobbyPlayerScore[]) {
-      console.log(scores);
       this.#songHistory.add(this.#currentPick.id);
       this.#setHistory.add(this.#currentPick.setid);
       // If the current song was close to the upper limit, raise the upper limit
       this.#expandedRating = Math.max(
          this.#currentPick.rating - this.#targetRating + STEP_SIZE,
-         this.#expandedRating
+         this.#expandedRating + 1
       );
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
       const oldHealth = this.#currentHealth;
@@ -285,8 +284,13 @@ class LobbyRef extends EventEmitter<{
       const randMod = availableMods[(Math.random() * availableMods.length) | 0];
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap._id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
-      await this.#lobby.setMods(randMod);
-      this.#currentPick = { id: randMap._id, setid: randMap.setid, mod: randMod, rating: randMap.ratings[randMod].rating };
+      await this.#lobby.setMods(randMod, this.#mode === "mania");
+      this.#currentPick = {
+         id: randMap._id,
+         setid: randMap.setid,
+         mod: randMod,
+         rating: randMap.ratings[randMod].rating
+      };
       this.#lobby.channel.sendMessage(
          `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
             randMod

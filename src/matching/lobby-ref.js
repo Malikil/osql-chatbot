@@ -277,7 +277,10 @@ class LobbyRef extends EventEmitter {
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
       await this.#lobby.setMap(pickedMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
-      await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
+      await this.#lobby.setMods(
+         `NF ${mod !== "nm" ? mod.toUpperCase() : ""}`,
+         mod === "fm" || this.#mode === "mania"
+      );
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;
    }
