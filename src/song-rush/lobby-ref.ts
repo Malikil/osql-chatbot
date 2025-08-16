@@ -190,7 +190,7 @@ class LobbyRef extends EventEmitter<{
          osu: [3.49522, 2.40942, 14],
          fruits: [2.56953, 4.26502, 25],
          taiko: [2.30302, 3.10628, 18],
-         mania: []
+         mania: [2.30302, 3.10628, 18]
       };
       const fail = +!score.pass * 10;
       const [a, b, c] = coef[this.#mode];
