@@ -176,7 +176,7 @@ class LobbyRef extends EventEmitter<{
                );
                await this.#nextSong();
             }
-         } else if (msg.content === "!public") this.#lobby?.setPassword("");
+         }
       }
    };
 
