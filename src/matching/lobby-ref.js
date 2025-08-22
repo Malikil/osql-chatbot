@@ -24,6 +24,7 @@ class LobbyRef extends EventEmitter {
    /** @type {import("../types/lobby").Mappool} */
    #mappool;
    #mode;
+   #variant;
    #players;
    /** @type {import("../types/lobby").LobbyState} */
    #lobbyState;
@@ -33,15 +34,17 @@ class LobbyRef extends EventEmitter {
     * @param {import("../types/matchmaking").MMPlayerObj[]} players
     * @param {BanchoClient} bancho
     * @param {import("../types/global").GameMode} mode
+    * @param {'4k' | '7k'} [variant]
     */
-   constructor(players, bancho, mode = "osu") {
+   constructor(players, bancho, mode = "osu", variant = null) {
       super();
       console.log("Set up ref instance");
       this.#players = players;
       this.#bancho = bancho;
       this.#mode = mode;
+      this.#variant = variant;
       const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
-      fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}&m=${mode}`)
+      fetch(`${process.env.INTERNAL_URL}/api/db/mappool?p=${playerParams}&m=${variant || mode}`)
          .then(data => data.json())
          .then(pool => (this.#mappool = pool))
          .then(() => console.log(this.#mappool))
@@ -106,7 +109,9 @@ class LobbyRef extends EventEmitter {
          const playerParams = this.#players.map(p => p.bancho.id).join("&p=");
          try {
             await fetch(
-               `${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}&m=${this.#mode}`
+               `${process.env.MAPPOOL_URL}/api/db/mappool?p=${playerParams}&m=${
+                  this.#variant || this.#mode
+               }`
             )
                .then(data => data.json())
                .then(pool => (this.#mappool = pool))
@@ -277,10 +282,7 @@ class LobbyRef extends EventEmitter {
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
       await this.#lobby.setMap(pickedMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
-      await this.#lobby.setMods(
-         `NF ${mod !== "nm" ? mod.toUpperCase() : ""}`,
-         mod === "fm" || this.#mode === "mania"
-      );
+      await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;
    }
@@ -332,21 +334,23 @@ class LobbyRef extends EventEmitter {
          )
             return this.#lobby.channel.sendMessage("NoFail is required.");
       } else if (this.#lobbyState.picks.selectedModpool === "fm") {
-         // Make sure both players have mods enabled
-         await this.#lobby.updateSettings();
-         if (
-            this.#lobby.slots.some(player => {
-               if (!player) return;
-               return (
-                  !player.mods.includes(BanchoMods.NoFail) ||
-                  !(
-                     player.mods.includes(BanchoMods.Hidden) ||
-                     player.mods.includes(BanchoMods.HardRock)
-                  )
-               );
-            })
-         )
-            return this.#lobby.channel.sendMessage("NoFail is required. HD or HR is required.");
+         if (this.#mode !== "mania") {
+            // Make sure both players have mods enabled
+            await this.#lobby.updateSettings();
+            if (
+               this.#lobby.slots.some(player => {
+                  if (!player) return;
+                  return (
+                     !player.mods.includes(BanchoMods.NoFail) ||
+                     !(
+                        player.mods.includes(BanchoMods.Hidden) ||
+                        player.mods.includes(BanchoMods.HardRock)
+                     )
+                  );
+               })
+            )
+               return this.#lobby.channel.sendMessage("NoFail is required. HD or HR is required.");
+         }
       }
       this.#lobby.startMatch(5);
    }

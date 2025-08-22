@@ -74,6 +74,7 @@ class Matchmaker extends EventEmitter<MatchmakerEvents> {
                };
             }),
             mode: lobby[0].mode,
+            variant: lobby[0].variant || lobby[1].variant,
             waitTimer: setTimeout(() => {
                pending.players.forEach(p => {
                   if (p.ready) {
@@ -109,7 +110,8 @@ class Matchmaker extends EventEmitter<MatchmakerEvents> {
          player,
          rating: player.rating.rating,
          range: player.rating.rd,
-         mode: player.mode
+         mode: player.mode,
+         variant: player.variant
       });
       console.log(this.#playerQueue);
    }
@@ -138,7 +140,8 @@ class Matchmaker extends EventEmitter<MatchmakerEvents> {
          this.emit(
             "match",
             lobby.players.map(p => p.player),
-            lobby.mode
+            lobby.mode,
+            lobby.variant
          );
       } else player.sendMessage("Waiting for opponent");
    }

@@ -15,9 +15,13 @@ class LobbyManager {
       this.#bancho = bancho;
    }
 
-   createLobby(players: MMPlayerObj[], mode: GameMode) {
+   createLobby(
+      players: MMPlayerObj[],
+      mode: GameMode,
+      variant: "4k" | "7k" | undefined = undefined
+   ) {
       console.log("Create match with players", players);
-      const lobby = new LobbyRef(players, this.#bancho, mode);
+      const lobby = new LobbyRef(players, this.#bancho, mode, variant);
       lobby.startMatch();
       this.#activeLobbies.push(lobby);
       const finished = () => {

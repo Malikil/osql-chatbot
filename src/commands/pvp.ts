@@ -1,5 +1,3 @@
-import { PrivateMessage } from "bancho.js";
-import Matchmaker from "../matching/matchmaker";
 import { playersDb } from "../db/connection";
 import { GameMode } from "../types/global";
 import { DbPlayer, PvPInfo } from "../types/database.player";
@@ -39,9 +37,14 @@ export const queue: PvpCommand = async (msg, matchmaker) => {
       if (!player) return;
    }
    // Figure out the gamemode
-   let mode = msg.message.split(" ")[1] as GameMode | "ctb";
+   let mode = msg.message.split(" ")[1] as GameMode | "ctb" | "4k" | "7k";
+   let variant: "4k" | "7k" | undefined = undefined;
    if (mode === "ctb") mode = "fruits";
-   if (!["osu", "fruits", "taiko"].includes(mode)) mode = "osu";
+   if (mode === "4k" || mode === "7k") {
+      variant = mode;
+      mode = "mania";
+   }
+   if (!["osu", "fruits", "taiko", "mania"].includes(mode)) mode = "osu";
    if (!player[mode].pvp) {
       player[mode].pvp = (await fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
          method: "PUT",
@@ -67,7 +70,8 @@ export const queue: PvpCommand = async (msg, matchmaker) => {
    matchmaker.searchForMatch({
       bancho: msg.user,
       rating: player[mode].pvp as PvPInfo,
-      mode
+      mode,
+      variant
    });
    msg.user.sendMessage(`Searching for pvp match in '${mode}'`);
 };
