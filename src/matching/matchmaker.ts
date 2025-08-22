@@ -4,6 +4,7 @@ import EventEmitter from "node:events";
 
 const withinRange = (p1: QueuedPlayer, p2: QueuedPlayer | null) => {
    if (!p2 || p1.mode !== p2.mode) return false;
+   if (p1.mode === "mania" && p1.variant && p2.variant && p1.variant !== p2.variant) return false;
    const diff = Math.abs(p1.rating - p2.rating);
    return p1.range > diff && p2.range > diff;
 };
