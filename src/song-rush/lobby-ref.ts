@@ -15,7 +15,7 @@ import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 
-const STEP_SIZE = 15;
+const STEP_SIZE = 20;
 
 class LobbyRef extends EventEmitter<{
    finished: [
@@ -203,7 +203,7 @@ class LobbyRef extends EventEmitter<{
       this.#setHistory.add(this.#currentPick.setid);
       // If the current song was close to the upper limit, raise the upper limit
       this.#expandedRating = Math.max(
-         this.#currentPick.rating - this.#targetRating + STEP_SIZE,
+         this.#currentPick.rating - (this.#targetRating + this.#ratingDeviation) + STEP_SIZE,
          this.#expandedRating + 1
       );
       const playerScore = scores.find(s => s.player.user.id === this.#player.id);
@@ -222,66 +222,70 @@ class LobbyRef extends EventEmitter<{
    async #nextSong() {
       if (!this.#lobby) throw new Error("Next song but no lobby found");
 
-      const filteredMaps = {
-         set: [] as DbBeatmap[],
-         map: [] as DbBeatmap[]
-      };
+      // Increase lower limit at half the speed of upper limit
+      const minRating = this.#targetRating - this.#ratingDeviation + this.#expandedRating / 2;
+      const maxRating = this.#targetRating + this.#ratingDeviation + this.#expandedRating;
       const filter: Filter<DbBeatmap> = {
+         _id: { $nin: Array.from(this.#songHistory) },
+         setid: { $nin: Array.from(this.#setHistory) },
          $or: [
             {
                "ratings.nm.rating": {
-                  $gt: this.#targetRating - this.#ratingDeviation,
-                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                  $gt: minRating,
+                  $lt: maxRating
                }
             },
             this.#currentPick.mod !== "hd" && {
                "ratings.hd.rating": {
-                  $gt: this.#targetRating - this.#ratingDeviation,
-                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                  $gt: minRating,
+                  $lt: maxRating
                }
             },
             this.#currentPick.mod !== "hr" && {
                "ratings.hr.rating": {
-                  $gt: this.#targetRating - this.#ratingDeviation,
-                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                  $gt: minRating,
+                  $lt: maxRating
                }
             },
             this.#currentPick.mod !== "dt" && {
                "ratings.dt.rating": {
-                  $gt: this.#targetRating - this.#ratingDeviation,
-                  $lt: this.#targetRating + this.#expandedRating + this.#ratingDeviation
+                  $gt: minRating,
+                  $lt: maxRating
                }
             }
          ].filter(v => v) as Filter<DbBeatmap>[]
       };
       if (this.#mode === "mania" && this.#maniamode) filter.cs = this.#maniamode === "7k" ? 7 : 4;
-      const candidateMaps: DbBeatmap[] = (await mapsDb[this.#mode].find(filter).toArray()).filter(
-         map => {
-            // If the map has already been used in any way, set it aside
-            if (this.#songHistory.has(map._id)) {
-               filteredMaps.map.push(map);
-               return false;
-            } else if (this.#setHistory.has(map.setid)) {
-               filteredMaps.set.push(map);
-               return false;
-            } else return true;
+      // Try to get a map
+      let randMap: DbBeatmap | null = null;
+      while (!randMap) {
+         const pipeline = [{ $match: filter }, { $sample: { size: 1 } }];
+         randMap = await mapsDb[this.#mode].aggregate<DbBeatmap>(pipeline).next();
+         if (!randMap) {
+            if ("setid" in filter) delete filter.setid;
+            else if ("_id" in filter) delete filter._id;
+            else {
+               console.log(
+                  `Unable to find ${
+                     this.#mode
+                  } map in range ${minRating.toFixed()} - ${maxRating.toFixed()}`
+               );
+               // Just pick literally anything
+               pipeline.shift();
+               if (this.#mode === "mania" && this.#maniamode)
+                  pipeline.unshift({ $match: { cs: this.#maniamode === "7k" ? 7 : 4 } });
+               randMap = await mapsDb[this.#mode].aggregate<DbBeatmap>(pipeline).next();
+            }
          }
-      );
-      // Make sure there are enough candidate maps
-      // Re-add maps from matched sets first
-      if (candidateMaps.length < 1) candidateMaps.push(...filteredMaps.set);
-      // Re-add duplicate maps if still required
-      if (candidateMaps.length < 1) candidateMaps.push(...filteredMaps.map);
+      }
 
-      const randMap = candidateMaps[(Math.random() * candidateMaps.length) | 0];
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
             (mod !== this.#currentPick.mod || mod === "nm") &&
-            randMap.ratings[mod]?.rating > this.#targetRating - this.#ratingDeviation &&
-            randMap.ratings[mod]?.rating <
-               this.#targetRating + this.#expandedRating + this.#ratingDeviation
+            randMap.ratings[mod]?.rating > minRating &&
+            randMap.ratings[mod]?.rating < maxRating
       );
-      const randMod = availableMods[(Math.random() * availableMods.length) | 0];
+      const randMod = availableMods[(Math.random() * availableMods.length) | 0] || "nm";
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap._id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(randMod, this.#mode === "mania");
