@@ -3,6 +3,8 @@ import Matchmaker from "./matching/matchmaker";
 import LobbyManager from "./matching/lobby-manager";
 import PveManager from './song-rush/lobby-manager';
 import { init as commandInit } from "./commands";
+import QualiManager from "./qualifier-lobby/lobby-manager";
+import AutoManager from "./auto-lobby/lobby-manager";
 
 const client = new BanchoClient({
    username: process.env.OSU_IRC_USERNAME || "",
@@ -15,8 +17,10 @@ const matchmaker = new Matchmaker({
 });
 const lobbyManager = new LobbyManager(client);
 const pveManager = new PveManager(client);
+const qualiManager = new QualiManager(client);
+const autoManager = new AutoManager(client);
 
-const commands = commandInit(matchmaker, lobbyManager, pveManager);
+const commands = commandInit(matchmaker, lobbyManager, pveManager, qualiManager, autoManager);
 
 client
    .connect()
