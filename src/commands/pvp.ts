@@ -11,7 +11,7 @@ export const unqueue: PvpCommand = async (msg, matchmaker) => {
 export const queue: PvpCommand = async (msg, matchmaker) => {
    console.log("Pvp match request");
    let player: DbPlayer | null = await playersDb.findOne({
-      osuid: msg.user.id,
+      _id: msg.user.id,
       hideLeaderboard: { $exists: false }
    });
    if (!player) {

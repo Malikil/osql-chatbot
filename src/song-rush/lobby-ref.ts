@@ -89,7 +89,7 @@ class LobbyRef extends EventEmitter<{
       // watching for the event here
       process.on("SIGTERM", this.#interruptHandler);
       // Fetch the rating information for this player
-      const dbplayer = await playersDb.findOne({ osuid: this.#player.id });
+      const dbplayer = await playersDb.findOne({ _id: this.#player.id });
       if (dbplayer) {
          this.#targetRating = dbplayer[this.#mode].pve.rating;
          this.#ratingDeviation = dbplayer[this.#mode].pve.rd;

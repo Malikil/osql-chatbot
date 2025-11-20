@@ -121,11 +121,13 @@ class LobbyRef extends EventEmitter<{
       if (!player.user.id)
          await player.user.fetchFromAPI();
       // Add them to our player list
-      const dbPlayer = await playersDb.findOne({ osuid: player.user.id });
-      if (dbPlayer)
-         this.#players.push(dbPlayer);
+      const dbPlayer = await playersDb.findOne({ _id: player.user.id });
+      if (dbPlayer) this.#players.push(dbPlayer);
       else
-         this.#players.push({ osuid: player.user.id, [this.#mode]: { pve: { rating: 1500, rd: 350 }}});
+         this.#players.push({
+            _id: player.user.id,
+            [this.#mode]: { pve: { rating: 1500, rd: 350 } }
+         });
       this.#calcTargetRating();
       // Get the map
       if (this.#players.length === 1)
@@ -145,7 +147,7 @@ class LobbyRef extends EventEmitter<{
       }
       else {
          // Remove this player from rating calcs
-         const playerIndex = this.#players.findIndex(p => p.osuid === player.user.id);
+         const playerIndex = this.#players.findIndex(p => p._id === player.user.id);
          this.#players.splice(playerIndex, 1);
          this.#calcTargetRating();
       }
@@ -195,7 +197,7 @@ class LobbyRef extends EventEmitter<{
 
          // Adjust individual player ratings based on their performance
          scores.forEach((score) => {
-            const player = this.#players.find(p => p.osuid === score.player.user.id);
+            const player = this.#players.find(p => p._id === score.player.user.id);
             if (!player) return;
             const pve = player[this.#mode]?.pve;
             if (!pve) return;

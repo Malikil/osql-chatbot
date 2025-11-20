@@ -56,7 +56,7 @@ export interface ModeInfo {
 }
 
 export interface DbPlayer extends Record<GameMode, ModeInfo> {
-   osuid: number;
+   _id: number;
    osuname: string;
    admin?: boolean;
    hideLeaderboard?: boolean;

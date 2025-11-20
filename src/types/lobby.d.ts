@@ -41,3 +41,5 @@ export interface LobbyEvents {
    finished: [mp: string, state: LobbyState];
    closed: [];
 }
+
+export interface Lobby {}
