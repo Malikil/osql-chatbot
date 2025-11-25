@@ -6,8 +6,7 @@ import {
    BanchoMessage,
    BanchoLobbyPlayer,
    BanchoUser,
-   BanchoLobbyPlayerScore,
-   BanchoMods
+   BanchoLobbyPlayerScore
 } from "bancho.js";
 import { Mode } from "nodesu";
 import EventEmitter from "node:events";
@@ -16,10 +15,8 @@ import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 import { DbPlayer } from "../types/database.player";
-import { RatingSet } from "../types/lobby";
 
 const TARGET_SCORE = 750000;
-
 
 class LobbyRef extends EventEmitter<{
    finished: [
@@ -43,7 +40,7 @@ class LobbyRef extends EventEmitter<{
    #currentPick: {
       id: number;
       setid: number;
-      ratings: RatingSet;
+      rating: Rating;
       doubleTime: boolean;
    };
    #closeTimer: NodeJS.Timeout | null;
@@ -102,7 +99,7 @@ class LobbyRef extends EventEmitter<{
       // Make the lobby public
       //this.#lobby.setPassword('');
       // Set freemod initially
-      this.#lobby.setMods('', true);
+      this.#lobby.setMods("", true);
    }
 
    async invitePlayer(player: BanchoUser) {
@@ -118,8 +115,7 @@ class LobbyRef extends EventEmitter<{
          this.#closeTimer = null;
       }
       // Make sure we have info for this player
-      if (!player.user.id)
-         await player.user.fetchFromAPI();
+      if (!player.user.id) await player.user.fetchFromAPI();
       // Add them to our player list
       const dbPlayer = await playersDb.findOne({ _id: player.user.id });
       if (dbPlayer) this.#players.push(dbPlayer);
@@ -130,22 +126,19 @@ class LobbyRef extends EventEmitter<{
          });
       this.#calcTargetRating();
       // Get the map
-      if (this.#players.length === 1)
-         this.#nextSong();
-   }
+      if (this.#players.length === 1) this.#nextSong();
+   };
 
    async #playerLeft(player: BanchoLobbyPlayer) {
       if (!this.#lobby) throw new Error("Player left but no lobby");
       // If there's less than two players in the lobby, make sure the count is correct
-      if (this.#lobby.slots.filter(s => s).length < 2)
-         await this.#lobby.updateSettings();
+      if (this.#lobby.slots.filter(s => s).length < 2) await this.#lobby.updateSettings();
       // If there are no players left, start a timer to close the lobby
       if (this.#lobby.slots.filter(s => s).length < 1) {
          this.#closeTimer = setTimeout(this.#matchCompleted, 20 * 60 * 1000);
          // Take this opportunity to concretely re-establish list parity
          this.#players = [];
-      }
-      else {
+      } else {
          // Remove this player from rating calcs
          const playerIndex = this.#players.findIndex(p => p._id === player.user.id);
          this.#players.splice(playerIndex, 1);
@@ -156,21 +149,24 @@ class LobbyRef extends EventEmitter<{
    #calcTargetRating = () => {
       // Take an average rating from all players, where the highest rating
       // player has the largest impact. Sort in descending order of rating
-      this.#players.sort((a, b) => (b[this.#mode]?.pve.rating || 0) - (a[this.#mode]?.pve.rating || 0));
-      const { sum, count, rdSum } = this.#players.reduce((agg, player, i) => {
-         agg.sum += (player[this.#mode]?.pve.rating || 0) / (i + 1);
-         agg.count += 1 / (i + 1);
-         const rd = (player[this.#mode]?.pve.rd || 0);
-         agg.rdSum += rd * rd / (i + 1);
-         return agg;
-      }, { sum: 0, count: 0, rdSum: 0 });
+      this.#players.sort(
+         (a, b) => (b[this.#mode]?.pve.rating || 0) - (a[this.#mode]?.pve.rating || 0)
+      );
+      const { sum, count, rdSum } = this.#players.reduce(
+         (agg, player, i) => {
+            agg.sum += (player[this.#mode]?.pve.rating || 0) / (i + 1);
+            agg.count += 1 / (i + 1);
+            const rd = player[this.#mode]?.pve.rd || 0;
+            agg.rdSum += (rd * rd) / (i + 1);
+            return agg;
+         },
+         { sum: 0, count: 0, rdSum: 0 }
+      );
       this.#targetRating = sum / count;
       this.#ratingDeviation = Math.sqrt(rdSum);
-   }
-
-   #handleLobbyMessage = async (msg: BanchoMessage) => {
-      
    };
+
+   #handleLobbyMessage = async (msg: BanchoMessage) => {};
 
    #playersReady = async () => {
       this.#lobby?.startMatch(5);
@@ -183,20 +179,23 @@ class LobbyRef extends EventEmitter<{
       if (this.#setHistory.length > 50) this.#setHistory.shift();
 
       // Get the song's rating
-      const songRating = this.#currentPick.ratings[this.#currentPick.doubleTime ? 'dt' : 'nm'];
+      const songRating = this.#currentPick.rating;
       // Find the mean and stdev for scores
       console.log(scores);
       // If there's only one player, don't bother adjusting anything
       if (scores.length > 1) {
          const scoreSum = scores.reduce((sum, score) => sum + score.score, 0);
          const averageScore = scoreSum / scores.length;
-         const scoreStdev = Math.sqrt(scores.reduce((agg, score) => {
-            const diff = score.score - averageScore;
-            return agg + diff * diff;
-         }, 0) / (scores.length - 1));
+         const scoreStdev = Math.sqrt(
+            scores.reduce((agg, score) => {
+               const diff = score.score - averageScore;
+               return agg + diff * diff;
+            }, 0) /
+               (scores.length - 1)
+         );
 
          // Adjust individual player ratings based on their performance
-         scores.forEach((score) => {
+         scores.forEach(score => {
             const player = this.#players.find(p => p._id === score.player.user.id);
             if (!player) return;
             const pve = player[this.#mode]?.pve;
@@ -208,8 +207,8 @@ class LobbyRef extends EventEmitter<{
             // Adjust the player's rating towards the actual difference
             // Ratings are generally in the thousands. Deviation differences should be single digit
             // That means this should be a relatively small change in the grand scheme of things
-            pve.rating += (actualDifference - expectedDifference);
-         })
+            pve.rating += actualDifference - expectedDifference;
+         });
       }
       // Recalculate the target rating and pick another song
       this.#calcTargetRating();
@@ -225,32 +224,10 @@ class LobbyRef extends EventEmitter<{
       const filter: Filter<DbBeatmap> = {
          _id: { $nin: this.#songHistory },
          setid: { $nin: this.#setHistory },
-         $or: [
-            {
-               "ratings.nm.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            {
-               "ratings.hd.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            {
-               "ratings.hr.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            {
-               "ratings.dt.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            }
-         ].filter(v => v) as Filter<DbBeatmap>[]
+         "rating.rating": {
+            $gt: minRating,
+            $lt: maxRating
+         }
       };
       if (this.#mode === "mania" && this.#maniamode) filter.cs = this.#maniamode === "7k" ? 7 : 4;
       // Try to get a map
@@ -276,28 +253,24 @@ class LobbyRef extends EventEmitter<{
          }
       }
 
-      const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
-         mod =>
-            randMap.ratings[mod]?.rating > minRating &&
-            randMap.ratings[mod]?.rating < maxRating
-      );
-      const randMod = availableMods[(Math.random() * availableMods.length) | 0] || "nm";
+      // Don't bother checking minRating
+      const dtRating = randMap.rating.rating * (randMap.mods.DT || 1);
+      const dtAvailable = dtRating < maxRating;
+      const isDt = dtAvailable && Math.random() < 0.1;
       // Set the map and update the next rating range
       await this.#lobby.setMap(randMap._id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       // Only set mods if switching to/from dt
-      const isDt = randMod === 'dt'
-      if (this.#currentPick.doubleTime !== isDt)
-         await this.#lobby.setMods(isDt ? 'dt' : '', true);
+      if (this.#currentPick.doubleTime !== isDt) await this.#lobby.setMods(isDt ? "dt" : "", true);
       this.#currentPick = {
          id: randMap._id,
          setid: randMap.setid,
-         ratings: randMap.ratings,
+         rating: randMap.rating,
          doubleTime: isDt
       };
       this.#lobby.channel.sendMessage(
-         `${randMap.title}${isDt ? ` +DT` : ''} - Rating: ${randMap.ratings[
-            isDt ? 'dt' : 'nm'
-         ].rating.toFixed()}`
+         `${randMap.title}${isDt ? ` +DT` : ""} - Rating: ${randMap.rating.rating.toFixed()}${
+            isDt ? ` x${(randMap.mods.DT || 1).toFixed(2)} (${dtRating.toFixed()})` : ""
+         }`
       );
    }
 

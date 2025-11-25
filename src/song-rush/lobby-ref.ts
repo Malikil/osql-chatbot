@@ -228,32 +228,36 @@ class LobbyRef extends EventEmitter<{
       const filter: Filter<DbBeatmap> = {
          _id: { $nin: Array.from(this.#songHistory) },
          setid: { $nin: Array.from(this.#setHistory) },
-         $or: [
-            {
-               "ratings.nm.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            this.#currentPick.mod !== "hd" && {
-               "ratings.hd.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            this.#currentPick.mod !== "hr" && {
-               "ratings.hr.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            },
-            this.#currentPick.mod !== "dt" && {
-               "ratings.dt.rating": {
-                  $gt: minRating,
-                  $lt: maxRating
-               }
-            }
-         ].filter(v => v) as Filter<DbBeatmap>[]
+         "rating.rating": {
+            $gt: minRating,
+            $lt: maxRating
+         }
+         // $or: [
+         //    {
+         //       "ratings.nm.rating": {
+         //          $gt: minRating,
+         //          $lt: maxRating
+         //       }
+         //    },
+         //    this.#currentPick.mod !== "hd" && {
+         //       "ratings.hd.rating": {
+         //          $gt: minRating,
+         //          $lt: maxRating
+         //       }
+         //    },
+         //    this.#currentPick.mod !== "hr" && {
+         //       "ratings.hr.rating": {
+         //          $gt: minRating,
+         //          $lt: maxRating
+         //       }
+         //    },
+         //    this.#currentPick.mod !== "dt" && {
+         //       "ratings.dt.rating": {
+         //          $gt: minRating,
+         //          $lt: maxRating
+         //       }
+         //    }
+         // ].filter(v => v) as Filter<DbBeatmap>[]
       };
       if (this.#mode === "mania" && this.#maniamode) filter.cs = this.#maniamode === "7k" ? 7 : 4;
       // Try to get a map
@@ -282,8 +286,8 @@ class LobbyRef extends EventEmitter<{
       const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
          mod =>
             (mod !== this.#currentPick.mod || mod === "nm") &&
-            randMap.ratings[mod]?.rating > minRating &&
-            randMap.ratings[mod]?.rating < maxRating
+            randMap.rating.rating * (randMap.mods[mod.toUpperCase()] || 1) > minRating &&
+            randMap.rating.rating * (randMap.mods[mod.toUpperCase()] || 1) < maxRating
       );
       const randMod = availableMods[(Math.random() * availableMods.length) | 0] || "nm";
       // Set the map and update the next rating range
@@ -293,12 +297,14 @@ class LobbyRef extends EventEmitter<{
          id: randMap._id,
          setid: randMap.setid,
          mod: randMod,
-         rating: randMap.ratings[randMod].rating
+         rating: randMap.rating.rating
       };
       this.#lobby.channel.sendMessage(
-         `${randMap.title} +${randMod.toUpperCase()} - Rating: ${randMap.ratings[
-            randMod
-         ].rating.toFixed()}`
+         `${
+            randMap.title
+         } +${randMod.toUpperCase()} - Rating: ${randMap.rating.rating.toFixed()} x${(
+            randMap.mods[randMod] || 1
+         ).toFixed(2)} (${(randMap.rating.rating * (randMap.mods[randMod] || 1)).toFixed()})`
       );
    }
 

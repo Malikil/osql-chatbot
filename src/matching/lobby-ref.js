@@ -124,11 +124,11 @@ class LobbyRef extends EventEmitter {
          }
       }
       // Send the intro message
-      const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
-      const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
-      const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
-      const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
-      const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
+      const nmUrl = this.#mappool.nm.join(",");
+      const hdUrl = this.#mappool.hd.join(",");
+      const hrUrl = this.#mappool.hr.join(",");
+      const dtUrl = this.#mappool.dt.join(",");
+      const fmUrl = this.#mappool.fm.join(",");
       const lUrl = encodeURIComponent(this.#lobby.name);
       const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}&m=${
          this.#mode
@@ -200,11 +200,11 @@ class LobbyRef extends EventEmitter {
       if (msg.message.startsWith("!")) {
          const command = msg.message.split(" ");
          if (["!lobby", "!match", "!info"].includes(command[0])) {
-            const nmUrl = this.#mappool.nm.map(m => m.id).join(",");
-            const hdUrl = this.#mappool.hd.map(m => m.id).join(",");
-            const hrUrl = this.#mappool.hr.map(m => m.id).join(",");
-            const dtUrl = this.#mappool.dt.map(m => m.id).join(",");
-            const fmUrl = this.#mappool.fm.map(m => m.id).join(",");
+            const nmUrl = this.#mappool.nm.join(",");
+            const hdUrl = this.#mappool.hd.join(",");
+            const hrUrl = this.#mappool.hr.join(",");
+            const dtUrl = this.#mappool.dt.join(",");
+            const fmUrl = this.#mappool.fm.join(",");
             const lUrl = encodeURIComponent(this.#lobby.name);
             const searchParams = `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}&l=${lUrl}`;
             this.#lobby.channel.sendMessage(
@@ -253,7 +253,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobbyState.bans.length >= 4) this.#lobbyState.action = "pick";
       this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       this.#lobby.channel.sendMessage(
-         `Banned map: ${bannedMap.artist} - ${bannedMap.title} [${bannedMap.version}]`
+         `Banned map: ${mod}${mapNo} - ${bannedMap}`
       );
       this.#lobby.channel.sendMessage(
          `Next ${this.#lobbyState.action}: ${
@@ -281,7 +281,7 @@ class LobbyRef extends EventEmitter {
       if (this.#lobbyState.picks.includes(pickedMap))
          return this.#lobby.channel.sendMessage("That map has already been picked");
 
-      await this.#lobby.setMap(pickedMap.id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
+      await this.#lobby.setMap(pickedMap, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
       this.#lobbyState.picks.nextPick = pickedMap;
       this.#lobbyState.picks.selectedModpool = mod;
@@ -311,7 +311,7 @@ class LobbyRef extends EventEmitter {
          this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
       }
       this.#lobby.channel.sendMessage(
-         `Banned map: ${bannedMap.artist} - ${bannedMap.title} [${bannedMap.version}]`
+         `Banned map: ${mod}${mapNo} - ${bannedMap}`
       );
       this.#lobby.channel.sendMessage(
          `Next ${this.#lobbyState.action}: ${
@@ -322,7 +322,7 @@ class LobbyRef extends EventEmitter {
 
    async #playersReady() {
       // Make sure the players haven't readied again after finishing a song
-      if (this.#lobbyState.picks.find(m => m.id === this.#lobby.beatmapId)) return;
+      if (this.#lobbyState.picks.find(m => m === this.#lobby.beatmapId)) return;
 
       if (this.#lobbyState.action === "tb") {
          await this.#lobby.updateSettings();

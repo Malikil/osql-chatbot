@@ -1,4 +1,4 @@
-import { GameMode, ModPool, Rating, SimpleMod } from "./global";
+import { GameMode, ModMultipliers, ModPool, Rating, SimpleMod } from "./global";
 
 export interface MatchHistoryMap {
    id: number;
@@ -8,15 +8,10 @@ export interface MatchHistoryMap {
 
 export interface MatchHistorySong {
    map: MatchHistoryMap;
-   mod: string;
+   mods: number;
+   modpool?: ModPool;
    score: number;
-}
-export interface PvEMatchHistorySong extends MatchHistorySong {
-   mod: SimpleMod;
-}
-export interface PvPMatchHistorySong extends MatchHistorySong {
-   mod: ModPool;
-   opponentScore: number;
+   opponentScore?: number;
 }
 
 export interface MatchHistory {
@@ -26,16 +21,13 @@ export interface MatchHistory {
    songs: MatchHistorySong[];
 }
 export interface MatchHistoryOpponent {
-   id: number;
+   id?: number;
    name: string;
    rating: number;
 }
-export interface PvEMatchHistory extends MatchHistory {
-   songs: PvEMatchHistorySong[];
-}
 export interface PvPMatchHistory extends MatchHistory {
-   songs: PvPMatchHistorySong[];
    opponent: MatchHistoryOpponent;
+   warmups?: number;
 }
 
 export interface PvPInfo extends Rating {
@@ -50,9 +42,21 @@ export interface PvEInfo extends Rating {
    songs: number;
 }
 
+export interface PracticePool {
+   name: string;
+   maps: {
+      id: number;
+      mod: ModPool;
+      scores: number[];
+   }[];
+}
+
 export interface ModeInfo {
    pvp?: PvPInfo;
    pve: PvEInfo;
+   styles: number[];
+   pools: PracticePool[];
+   mods: ModMultipliers;
 }
 
 export interface DbPlayer extends Record<GameMode, ModeInfo> {

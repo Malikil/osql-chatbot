@@ -139,9 +139,11 @@ class LobbyRef extends EventEmitter<{
       const dbMap = await mapsDb[this.#mode].findOne({ _id: nextMap.map });
       if (dbMap)
          this.#lobby.channel.sendMessage(
-            `${dbMap.title} +${nextMap.mod.toUpperCase()} - Rating: ${dbMap.ratings[
-               nextMap.mod === "fm" ? "nm" : nextMap.mod
-            ].rating.toFixed()}`
+            `${
+               dbMap.title
+            } +${nextMap.mod.toUpperCase()} - Rating: ${dbMap.rating.rating.toFixed()} x${(
+               dbMap.mods[nextMap.mod] || 1
+            ).toFixed(2)} (${(dbMap.rating.rating * (dbMap.mods[nextMap.mod] || 1)).toFixed()})`
          );
       else
          this.#lobby.channel.sendMessage(
@@ -149,7 +151,10 @@ class LobbyRef extends EventEmitter<{
          );
       // Set the map and update the next rating range
       await this.#lobby.setMap(nextMap.map, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
-      await this.#lobby.setMods('nf ' + nextMap.mod, nextMap.mod === 'fm' || this.#mode === "mania");
+      await this.#lobby.setMods(
+         "nf " + nextMap.mod,
+         nextMap.mod === "fm" || this.#mode === "mania"
+      );
    }
 
    #matchCompleted = () => {
