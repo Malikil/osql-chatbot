@@ -1,4 +1,4 @@
-import { BanchoUser, BanchoClient } from "bancho.js";
+import { BanchoUser, BanchoClient, BanchoMod } from "bancho.js";
 import LobbyRef from "./lobby-ref";
 import { GameMode, ModPool } from "../types/global";
 
@@ -14,7 +14,7 @@ class LobbyManager {
    createLobby(
       player: BanchoUser,
       mode: GameMode = "osu",
-      maplist: { map: number; mod: ModPool }[] = [],
+      maplist: { map: number; mods: BanchoMod[]; freemod?: boolean }[] = [],
       shuffle: boolean = false
    ) {
       console.log("Create qualifier lobby with player", player.username);

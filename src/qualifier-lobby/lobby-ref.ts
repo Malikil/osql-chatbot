@@ -6,11 +6,12 @@ import {
    BanchoMessage,
    BanchoLobbyPlayer,
    BanchoUser,
-   BanchoLobbyPlayerScore
+   BanchoLobbyPlayerScore,
+   BanchoMod
 } from "bancho.js";
 import { Mode } from "nodesu";
 import EventEmitter from "node:events";
-import { GameMode, ModPool } from "../types/global";
+import { GameMode } from "../types/global";
 import { mapsDb } from "../db/connection";
 
 class LobbyRef extends EventEmitter<{
@@ -28,7 +29,7 @@ class LobbyRef extends EventEmitter<{
    #mode;
    #player;
    #interruptHandler;
-   #maplist: { map: number; mod: ModPool }[];
+   #maplist: { map: number; mods: BanchoMod[]; freemod?: boolean }[];
    #shuffle: boolean;
 
    constructor(player: BanchoUser, bancho: BanchoClient, mode: GameMode = "osu") {
@@ -47,10 +48,12 @@ class LobbyRef extends EventEmitter<{
       };
    }
 
-   setMaplist(maps: { map: number; mod: ModPool }[], shuffle: boolean | undefined = undefined) {
+   setMaplist(
+      maps: { map: number; mods: BanchoMod[]; freemod?: boolean }[],
+      shuffle: boolean | undefined = undefined
+   ) {
       this.#maplist = maps;
-      if (shuffle !== undefined)
-         this.#shuffle = shuffle;
+      if (shuffle !== undefined) this.#shuffle = shuffle;
    }
 
    async startMatch() {
@@ -132,28 +135,30 @@ class LobbyRef extends EventEmitter<{
       if (!this.#lobby) throw new Error("Next song but no lobby found");
       // Get the next map/mod
       let nextIndex = 0;
-      if (this.#shuffle)
-         nextIndex = (this.#maplist.length * Math.random()) | 0;
+      if (this.#shuffle) nextIndex = (this.#maplist.length * Math.random()) | 0;
       const nextMap = this.#maplist.splice(nextIndex, 1)[0];
+      const shortMods = nextMap.mods.map(m => m.shortMod);
       // Look up the map in the db
       const dbMap = await mapsDb[this.#mode].findOne({ _id: nextMap.map });
-      if (dbMap)
+      if (dbMap) {
+         const rating = dbMap.rating.rating;
+         const modMult = shortMods.reduce((mult, mod) => mult * (dbMap.mods[mod] || 1), 1);
          this.#lobby.channel.sendMessage(
-            `${
-               dbMap.title
-            } +${nextMap.mod.toUpperCase()} - Rating: ${dbMap.rating.rating.toFixed()} x${(
-               dbMap.mods[nextMap.mod] || 1
-            ).toFixed(2)} (${(dbMap.rating.rating * (dbMap.mods[nextMap.mod] || 1)).toFixed()})`
+            `${dbMap.title} +${
+               shortMods.join("") || "NM"
+            } - Rating: ${rating.toFixed()} x${modMult.toFixed(2)} (${(
+               dbMap.rating.rating * modMult
+            ).toFixed()})`
          );
-      else
+      } else
          this.#lobby.channel.sendMessage(
-            `${nextMap.map} +${nextMap.mod.toUpperCase()} - Rating: Unknown`
+            `${nextMap.map} +${shortMods.join("") || "NM"} - Rating: Unknown`
          );
       // Set the map and update the next rating range
       await this.#lobby.setMap(nextMap.map, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(
-         "nf " + nextMap.mod,
-         nextMap.mod === "fm" || this.#mode === "mania"
+         "nf " + shortMods.join(" "),
+         nextMap.freemod || this.#mode === "mania"
       );
    }
 

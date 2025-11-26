@@ -1,5 +1,6 @@
+import { BanchoMod, BanchoMods } from "bancho.js";
 import { QualifierCommand } from "../types/commands";
-import { GameMode, ModPool } from "../types/global";
+import { GameMode } from "../types/global";
 
 export const qualifierLobby: QualifierCommand = async (msg, lobbyManager) => {
    const messageArgs = msg.message.split(" ");
@@ -15,10 +16,12 @@ export const qualifierLobby: QualifierCommand = async (msg, lobbyManager) => {
    // Figure out the maplist
    const maplist: {
       map: number;
-      mod: ModPool;
+      mods: BanchoMod[];
+      freemod?: boolean;
    }[] = [];
    let nextArg: string;
-   let mod: ModPool = "nm";
+   let mods: BanchoMod[] = [];
+   let freemod = false;
    let shuffle = false;
    do {
       nextArg = messageArgs.shift() || "";
@@ -26,10 +29,14 @@ export const qualifierLobby: QualifierCommand = async (msg, lobbyManager) => {
       if (id)
          maplist.push({
             map: id,
-            mod
+            mods,
+            freemod
          });
-      else if (["nm", "hd", "hr", "dt", "fm"].includes(nextArg)) mod = nextArg as ModPool;
-      else if (nextArg === 'shuffle') shuffle = true;
+      else if (nextArg === "shuffle") shuffle = true;
+      else {
+         mods = BanchoMods.parseShortMods(nextArg);
+         freemod = nextArg.toLowerCase().includes("fm");
+      }
    } while (nextArg);
    lobbyManager.createLobby(msg.user, mode, maplist, shuffle);
 };
