@@ -4,7 +4,7 @@
    "main": "index.js",
    "scripts": {
       "build": "tsc --build --clean && tsc",
-      "start": "dotenvx run -- node build/app.js",
+      "start": "node build/app.js",
       "dev": "dotenvx run -- nodemon src/app.ts",
       "prod": "nohup npm start > logs/$(date \"+%Y-%m-%d_%H%M\").out 2>&1 &"
    },
@@ -13,11 +13,11 @@
    "license": "ISC",
    "description": "",
    "dependencies": {
-      "@dotenvx/dotenvx": "^1.24.2",
       "bancho.js": "^0.12.0",
       "mongodb": "^6.10.0"
    },
    "devDependencies": {
+      "@dotenvx/dotenvx": "^1.24.2",
       "@tsconfig/node-ts": "^23.6.1",
       "@tsconfig/node22": "^22.0.2",
       "@types/node": "^24.1.0",
