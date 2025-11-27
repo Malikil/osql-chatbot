@@ -299,12 +299,11 @@ class LobbyRef extends EventEmitter<{
          mod: randMod,
          rating: randMap.rating.rating
       };
+      const randUpper = randMod.toUpperCase();
       this.#lobby.channel.sendMessage(
-         `${
-            randMap.title
-         } +${randMod.toUpperCase()} - Rating: ${randMap.rating.rating.toFixed()} x${(
-            randMap.mods[randMod] || 1
-         ).toFixed(2)} (${(randMap.rating.rating * (randMap.mods[randMod] || 1)).toFixed()})`
+         `${randMap.title} +${randUpper} - Rating: ${randMap.rating.rating.toFixed()} x${(
+            randMap.mods[randUpper] || 1
+         ).toFixed(2)} (${(randMap.rating.rating * (randMap.mods[randUpper] || 1)).toFixed()})`
       );
    }
 
