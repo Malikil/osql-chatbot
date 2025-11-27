@@ -1,0 +1,23 @@
+name: Deploy to Google Cloud Platform
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GCP
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ${{ secrets.GCP_BOT_PATH }}
+            git fetch origin
+            git reset --hard origin/master
+            npm run build
+            sudo systemctl restart mpsq-bot
+            echo "Deployment completed successfully"
