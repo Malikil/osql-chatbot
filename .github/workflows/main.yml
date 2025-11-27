@@ -18,6 +18,6 @@ jobs:
             cd ${{ secrets.GCP_BOT_PATH }}
             git fetch origin
             git reset --hard origin/master
-            npm run build
+            ${{ secrets.GCP_NPM_PATH}}/npm run build
             sudo systemctl restart mpsq-bot
             echo "Deployment completed successfully"
