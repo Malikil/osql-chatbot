@@ -15,9 +15,10 @@ jobs:
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
           script: |
-            cd ${{ secrets.GCP_BOT_PATH }}
+            cd ${{ secrets.GCP_BOT_PATH }} || { echo "Bot directory not fount"; exit 1; }
+            export PATH="${{ secrets.GCP_NPM_PATH }}:$PATH"
             git fetch origin
             git reset --hard origin/master
-            ${{ secrets.GCP_NPM_PATH}}/npm run build
+            npm run build || { echo "Build command failed"; exit 1; }
             sudo systemctl restart mpsq-bot
             echo "Deployment completed successfully"
