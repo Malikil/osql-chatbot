@@ -137,7 +137,7 @@ class LobbyRef extends EventEmitter<{
       let nextIndex = 0;
       if (this.#shuffle) nextIndex = (this.#maplist.length * Math.random()) | 0;
       const nextMap = this.#maplist.splice(nextIndex, 1)[0];
-      const shortMods = nextMap.mods.map(m => m.shortMod);
+      const shortMods = nextMap.mods.map(m => m.shortMod.toUpperCase());
       // Look up the map in the db
       const dbMap = await mapsDb[this.#mode].findOne({ _id: nextMap.map });
       if (dbMap) {
@@ -147,7 +147,7 @@ class LobbyRef extends EventEmitter<{
             `${dbMap.title} +${
                shortMods.join("") || "NM"
             } - Rating: ${rating.toFixed()} x${modMult.toFixed(2)} (${(
-               dbMap.rating.rating * modMult
+               rating * modMult
             ).toFixed()})`
          );
       } else
