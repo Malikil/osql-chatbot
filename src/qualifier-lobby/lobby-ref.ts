@@ -158,7 +158,9 @@ class LobbyRef extends EventEmitter<{
       await this.#lobby.setMap(nextMap.map, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
       await this.#lobby.setMods(
          "nf " + shortMods.join(" "),
-         nextMap.freemod || this.#mode === "mania"
+         nextMap.freemod ||
+            this.#mode === "mania" ||
+            (this.#mode === "fruits" && shortMods.some(mod => mod === "HR" || mod === "DT"))
       );
    }
 
