@@ -39,11 +39,12 @@ class LobbyRef extends EventEmitter<{
    #setHistory: number[];
    #currentPick: {
       id: number;
-      setid: number;
-      rating: Rating;
+      setid?: number;
+      rating?: Rating;
       doubleTime: boolean;
    };
    #closeTimer: NodeJS.Timeout | null;
+   #requestQueue: { map: number; dt: boolean }[];
 
    constructor(bancho: BanchoClient, mode: GameMode = "osu") {
       super();
@@ -57,6 +58,7 @@ class LobbyRef extends EventEmitter<{
       this.#songHistory = [];
       this.#setHistory = [];
       this.#closeTimer = null;
+      this.#requestQueue = [];
       // Current pick will be set whenever nextMap runs. The only time it's referenced is after a map finishes.
       // If I check for it myself all I would do is throw an error to make typescript stop complaining.
       // A default null reference error will serve literally the exact same purpose
@@ -79,7 +81,7 @@ class LobbyRef extends EventEmitter<{
       process.on("SIGTERM", this.#interruptHandler);
       // Create the lobby
       const mpChannel = await this.#bancho.createLobby(
-         `Auto lobby | Auto next song | ${this.#maniamode || this.#mode}`
+         `Auto lobby | Auto pick songs | ${this.#maniamode || this.#mode}`
       );
       this.#lobby = mpChannel.lobby;
       mpChannel.on("message", this.#handleLobbyMessage);
@@ -166,7 +168,23 @@ class LobbyRef extends EventEmitter<{
       this.#ratingDeviation = Math.sqrt(rdSum);
    };
 
-   #handleLobbyMessage = async (msg: BanchoMessage) => {};
+   #handleLobbyMessage = async (msg: BanchoMessage) => {
+      if (msg.content.startsWith("!request ")) {
+         const args = msg.content
+            .split(" ")
+            .map(v => v.trim())
+            .filter(v => v);
+         const mapId = parseInt(args[1]);
+         if (mapId) {
+            if (this.#requestQueue.some(s => s.map === mapId) || this.#songHistory.includes(mapId))
+               this.#lobby?.channel.sendMessage("Map has already been requested");
+            else {
+               this.#requestQueue.push({ map: mapId, dt: args[2]?.toUpperCase() === "DT" });
+               this.#lobby?.channel.sendMessage(`Added ${mapId} to queue`);
+            }
+         }
+      }
+   };
 
    #playersReady = async () => {
       this.#lobby?.startMatch(5);
@@ -175,7 +193,7 @@ class LobbyRef extends EventEmitter<{
    #songFinished(scores: BanchoLobbyPlayerScore[]) {
       this.#songHistory.push(this.#currentPick.id);
       if (this.#songHistory.length > 50) this.#songHistory.shift();
-      this.#setHistory.push(this.#currentPick.setid);
+      if (this.#currentPick.setid) this.#setHistory.push(this.#currentPick.setid);
       if (this.#setHistory.length > 50) this.#setHistory.shift();
 
       // Get the song's rating
@@ -183,7 +201,7 @@ class LobbyRef extends EventEmitter<{
       // Find the mean and stdev for scores
       console.log(scores);
       // If there's only one player, don't bother adjusting anything
-      if (scores.length > 1) {
+      if (songRating && scores.length > 1) {
          const scoreSum = scores.reduce((sum, score) => sum + score.score, 0);
          const averageScore = scoreSum / scores.length;
          const scoreStdev = Math.sqrt(
@@ -217,6 +235,21 @@ class LobbyRef extends EventEmitter<{
 
    async #nextSong() {
       if (!this.#lobby) throw new Error("Next song but no lobby found");
+
+      // If there's a requested song, pick that one
+      if (this.#requestQueue.length > 0) {
+         const nextMap = this.#requestQueue.shift();
+         if (!nextMap) throw new Error("Array length > 1 but shift() undefined");
+         this.#lobby.channel.sendMessage(`Pick map ${nextMap.map}`);
+         await this.#lobby.setMap(nextMap.map, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
+         if (this.#currentPick.doubleTime !== nextMap.dt)
+            await this.#lobby.setMods(nextMap.dt ? "dt" : "", true);
+         this.#currentPick = {
+            id: nextMap.map,
+            doubleTime: nextMap.dt
+         };
+         return;
+      }
 
       // Increase lower limit at half the speed of upper limit
       const minRating = this.#targetRating - this.#ratingDeviation / 2;
