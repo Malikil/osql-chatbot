@@ -5,33 +5,19 @@ import {
    BanchoLobbyWinConditions,
    BanchoMessage,
    BanchoLobbyPlayer,
-   BanchoUser,
-   BanchoLobbyPlayerScore
+   BanchoLobbyPlayerScore,
+   BanchoUser
 } from "bancho.js";
 import { Mode } from "nodesu";
-import EventEmitter from "node:events";
-import { GameMode, Rating, SimpleMod } from "../types/global";
+import { GameMode, Rating } from "../types/global";
 import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 import { DbPlayer } from "../types/database.player";
+import LobbyBase from "./lobby-base";
 
-const TARGET_SCORE = 750000;
-
-class LobbyRef extends EventEmitter<{
-   finished: [
-      mp: number,
-      lobbyState: {
-         mode: GameMode;
-      }
-   ];
-   closed: [mp: number];
-}> {
-   #bancho;
-   #lobby?: BanchoLobby;
-   #mode;
-   #maniamode: "4k" | "7k" | null;
-   #interruptHandler;
+class AutoLobby extends LobbyBase {
+   #initPlayer;
    #players: Partial<DbPlayer>[];
    #targetRating;
    #ratingDeviation;
@@ -46,12 +32,10 @@ class LobbyRef extends EventEmitter<{
    #closeTimer: NodeJS.Timeout | null;
    #requestQueue: { map: number; dt: boolean }[];
 
-   constructor(bancho: BanchoClient, mode: GameMode = "osu") {
-      super();
+   constructor(player: BanchoUser, mode: GameMode = "osu") {
+      super(player.banchojs, mode);
       console.log("Set up ref instance");
-      this.#bancho = bancho;
-      this.#mode = mode;
-      this.#maniamode = null;
+      this.#initPlayer = player;
       this.#players = [];
       this.#targetRating = 1500;
       this.#ratingDeviation = 350;
@@ -63,54 +47,29 @@ class LobbyRef extends EventEmitter<{
       // If I check for it myself all I would do is throw an error to make typescript stop complaining.
       // A default null reference error will serve literally the exact same purpose
       this.#currentPick = { doubleTime: false } as any;
-      this.#interruptHandler = () => {
-         this.#lobby?.channel.sendMessage(
-            "SIGTERM - Process killed. All active lobbies have been abandoned."
-         );
-         this.closeLobby();
-      };
    }
 
-   setManiaMode(maniamode: "4k" | "7k") {
-      this.#maniamode = maniamode;
-   }
-
-   async startMatch() {
-      // There must be a cleaner way to close lobbies when the program is trying to exit than
-      // watching for the event here
-      process.on("SIGTERM", this.#interruptHandler);
-      // Create the lobby
-      const mpChannel = await this.#bancho.createLobby(
-         `Auto lobby | Auto pick songs | ${this.#maniamode || this.#mode}`
+   protected async _createLobby(): Promise<BanchoLobby> {
+      const channel = await this._bancho.createLobby(
+         `Auto lobby | Auto pick songs | ${this._maniamode || this.mode}`
       );
-      this.#lobby = mpChannel.lobby;
-      mpChannel.on("message", this.#handleLobbyMessage);
-
-      console.log(`Created ${this.#mode} lobby: ${mpChannel.name}`);
-      await this.#lobby.setSettings(
+      return channel.lobby;
+   }
+   
+   protected async _startMatch() {
+      await this.lobby.setSettings(
          BanchoLobbyTeamModes.HeadToHead,
          BanchoLobbyWinConditions.ScoreV2,
          8
       );
-      // Set up lobby listeners
-      this.#lobby.on("playerJoined", this.#playerJoined);
-      // Set up events for match gameplay
-      this.#lobby.on("allPlayersReady", this.#playersReady);
-      this.#lobby.on("playerLeft", this.#playerLeft.bind(this));
-      this.#lobby.on("matchFinished", this.#songFinished.bind(this) as () => void);
       // Make the lobby public
       //this.#lobby.setPassword('');
       // Set freemod initially
-      this.#lobby.setMods("", true);
+      this.lobby.setMods("", true);
+      this.invitePlayer(this.#initPlayer);
    }
 
-   async invitePlayer(player: BanchoUser) {
-      console.log("Invite player", player.username);
-      return this.#lobby?.invitePlayer(`#${player.id}`);
-   }
-
-   #playerJoined = async ({ player }: { player: BanchoLobbyPlayer }) => {
-      console.log(`${player.user.ircUsername} joined the lobby`);
+   protected async _onPlayerJoined({ player }: { player: BanchoLobbyPlayer; slot: number; team: string; }): Promise<void> {
       // If we're getting ready to close the lobby, don't do that
       if (this.#closeTimer) {
          clearTimeout(this.#closeTimer);
@@ -124,19 +83,18 @@ class LobbyRef extends EventEmitter<{
       else
          this.#players.push({
             _id: player.user.id,
-            [this.#mode]: { pve: { rating: 1500, rd: 350 } }
+            [this.mode]: { pve: { rating: 1500, rd: 350 } }
          });
       this.#calcTargetRating();
       // Get the map
       if (this.#players.length === 1) this.#nextSong();
    };
 
-   async #playerLeft(player: BanchoLobbyPlayer) {
-      if (!this.#lobby) throw new Error("Player left but no lobby");
+   protected async _onPlayerLeft(player: BanchoLobbyPlayer): Promise<void> {
       // If there's less than two players in the lobby, make sure the count is correct
-      if (this.#lobby.slots.filter(s => s).length < 2) await this.#lobby.updateSettings();
+      if (this.lobby.slots.filter(s => s).length < 2) await this.lobby.updateSettings();
       // If there are no players left, start a timer to close the lobby
-      if (this.#lobby.slots.filter(s => s).length < 1) {
+      if (this.lobby.slots.filter(s => s).length < 1) {
          this.#closeTimer = setTimeout(this.#matchCompleted, 20 * 60 * 1000);
          // Take this opportunity to concretely re-establish list parity
          this.#players = [];
@@ -152,13 +110,13 @@ class LobbyRef extends EventEmitter<{
       // Take an average rating from all players, where the highest rating
       // player has the largest impact. Sort in descending order of rating
       this.#players.sort(
-         (a, b) => (b[this.#mode]?.pve.rating || 0) - (a[this.#mode]?.pve.rating || 0)
+         (a, b) => (b[this.mode]?.pve.rating || 0) - (a[this.mode]?.pve.rating || 0)
       );
       const { sum, count, rdSum } = this.#players.reduce(
          (agg, player, i) => {
-            agg.sum += (player[this.#mode]?.pve.rating || 0) / (i + 1);
+            agg.sum += (player[this.mode]?.pve.rating || 0) / (i + 1);
             agg.count += 1 / (i + 1);
-            const rd = player[this.#mode]?.pve.rd || 0;
+            const rd = player[this.mode]?.pve.rd || 0;
             agg.rdSum += (rd * rd) / (i + 1);
             return agg;
          },
@@ -168,7 +126,7 @@ class LobbyRef extends EventEmitter<{
       this.#ratingDeviation = Math.sqrt(rdSum);
    };
 
-   #handleLobbyMessage = async (msg: BanchoMessage) => {
+   protected async _onLobbyMessage(msg: BanchoMessage): Promise<void> {
       if (msg.content.startsWith("!request ")) {
          const args = msg.content
             .split(" ")
@@ -177,20 +135,16 @@ class LobbyRef extends EventEmitter<{
          const mapId = parseInt(args[1]);
          if (mapId) {
             if (this.#requestQueue.some(s => s.map === mapId) || this.#songHistory.includes(mapId))
-               this.#lobby?.channel.sendMessage("Map has already been requested");
+               this.lobby.channel.sendMessage("Map has already been requested");
             else {
                this.#requestQueue.push({ map: mapId, dt: args[2]?.toUpperCase() === "DT" });
-               this.#lobby?.channel.sendMessage(`Added ${mapId} to queue`);
+               this.lobby.channel.sendMessage(`Added ${mapId} to queue`);
             }
          }
       }
    };
 
-   #playersReady = async () => {
-      this.#lobby?.startMatch(5);
-   };
-
-   #songFinished(scores: BanchoLobbyPlayerScore[]) {
+   protected async _onSongFinished(scores: BanchoLobbyPlayerScore[]): Promise<void> {
       this.#songHistory.push(this.#currentPick.id);
       if (this.#songHistory.length > 50) this.#songHistory.shift();
       if (this.#currentPick.setid) this.#setHistory.push(this.#currentPick.setid);
@@ -216,7 +170,7 @@ class LobbyRef extends EventEmitter<{
          scores.forEach(score => {
             const player = this.#players.find(p => p._id === score.player.user.id);
             if (!player) return;
-            const pve = player[this.#mode]?.pve;
+            const pve = player[this.mode]?.pve;
             if (!pve) return;
             // How far from the target should they be, based on their rating
             const combinedRatingStdev = Math.sqrt(pve.rd * pve.rd + songRating.rd * songRating.rd);
@@ -234,16 +188,14 @@ class LobbyRef extends EventEmitter<{
    }
 
    async #nextSong() {
-      if (!this.#lobby) throw new Error("Next song but no lobby found");
-
       // If there's a requested song, pick that one
       if (this.#requestQueue.length > 0) {
          const nextMap = this.#requestQueue.shift();
          if (!nextMap) throw new Error("Array length > 1 but shift() undefined");
-         this.#lobby.channel.sendMessage(`Pick map ${nextMap.map}`);
-         await this.#lobby.setMap(nextMap.map, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
+         this.lobby.channel.sendMessage(`Pick map ${nextMap.map}`);
+         await this.lobby.setMap(nextMap.map, Mode[this.mode === "fruits" ? "ctb" : this.mode]);
          if (this.#currentPick.doubleTime !== nextMap.dt)
-            await this.#lobby.setMods(nextMap.dt ? "dt" : "", true);
+            await this.lobby.setMods(nextMap.dt ? "dt" : "", true);
          this.#currentPick = {
             id: nextMap.map,
             doubleTime: nextMap.dt
@@ -262,26 +214,26 @@ class LobbyRef extends EventEmitter<{
             $lt: maxRating
          }
       };
-      if (this.#mode === "mania" && this.#maniamode) filter.cs = this.#maniamode === "7k" ? 7 : 4;
+      if (this.mode === "mania" && this._maniamode) filter.cs = this._maniamode === "7k" ? 7 : 4;
       // Try to get a map
       let randMap: DbBeatmap | null = null;
       while (!randMap) {
          const pipeline = [{ $match: filter }, { $sample: { size: 1 } }];
-         randMap = await mapsDb[this.#mode].aggregate<DbBeatmap>(pipeline).next();
+         randMap = await mapsDb[this.mode].aggregate<DbBeatmap>(pipeline).next();
          if (!randMap) {
             if ("setid" in filter) delete filter.setid;
             else if ("_id" in filter) delete filter._id;
             else {
                console.log(
                   `Unable to find ${
-                     this.#mode
+                     this.mode
                   } map in range ${minRating.toFixed()} - ${maxRating.toFixed()}`
                );
                // Just pick literally anything
                pipeline.shift();
-               if (this.#mode === "mania" && this.#maniamode)
-                  pipeline.unshift({ $match: { cs: this.#maniamode === "7k" ? 7 : 4 } });
-               randMap = await mapsDb[this.#mode].aggregate<DbBeatmap>(pipeline).next();
+               if (this.mode === "mania" && this._maniamode)
+                  pipeline.unshift({ $match: { cs: this._maniamode === "7k" ? 7 : 4 } });
+               randMap = await mapsDb[this.mode].aggregate<DbBeatmap>(pipeline).next();
             }
          }
       }
@@ -291,16 +243,16 @@ class LobbyRef extends EventEmitter<{
       const dtAvailable = dtRating < maxRating;
       const isDt = dtAvailable && Math.random() < 0.1;
       // Set the map and update the next rating range
-      await this.#lobby.setMap(randMap._id, Mode[this.#mode === "fruits" ? "ctb" : this.#mode]);
+      await this.lobby.setMap(randMap._id, Mode[this.mode === "fruits" ? "ctb" : this.mode]);
       // Only set mods if switching to/from dt
-      if (this.#currentPick.doubleTime !== isDt) await this.#lobby.setMods(isDt ? "dt" : "", true);
+      if (this.#currentPick.doubleTime !== isDt) await this.lobby.setMods(isDt ? "dt" : "", true);
       this.#currentPick = {
          id: randMap._id,
          setid: randMap.setid,
          rating: randMap.rating,
          doubleTime: isDt
       };
-      this.#lobby.channel.sendMessage(
+      this.lobby.channel.sendMessage(
          `${randMap.title}${isDt ? ` +DT` : ""} - Rating: ${randMap.rating.rating.toFixed()}${
             isDt ? ` x${(randMap.mods.DT || 1).toFixed(2)} (${dtRating.toFixed()})` : ""
          }`
@@ -308,32 +260,10 @@ class LobbyRef extends EventEmitter<{
    }
 
    #matchCompleted = () => {
-      if (!this.#lobby) throw new Error("Match finished but no lobby");
-      this.#lobby.channel.sendMessage("Lobby finished - submitting result to server");
-      this.#lobby.removeAllListeners("playerLeft");
-      this.emit("finished", this.#lobby.id, {
-         mode: this.#mode
-      });
-      setTimeout(this.closeLobby.bind(this), 5000);
+      this.lobby.channel.sendMessage("Lobby finished - submitting result to server");
+      this.emit('finished', this.lobby.id);
+      this.closeLobby(5000);
    };
-
-   async closeLobby() {
-      const mp = this.#lobby?.id || 0;
-      process.off("SIGTERM", this.#interruptHandler);
-      try {
-         this.#lobby?.off("allPlayersReady", this.#playersReady);
-         // I actually can't guarantee banchojs doesn't maintain its own listeners. It probably *is* bad practice to remove
-         // listeners here if I haven't explicitly added them myself.
-         this.#lobby?.removeAllListeners();
-         this.#lobby?.channel.off("message", this.#handleLobbyMessage);
-         await this.#lobby?.closeLobby().catch(err => console.warn(err));
-      } catch (err) {
-         console.warn("Couldn't clean up properly");
-         console.warn(err);
-      } finally {
-         this.emit("closed", mp);
-      }
-   }
 }
 
-export default LobbyRef;
+export default AutoLobby;

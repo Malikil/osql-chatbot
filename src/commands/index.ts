@@ -1,24 +1,14 @@
 import { PrivateMessage } from "bancho.js";
 import LobbyManager from "../matching/lobby-manager";
-import PveManager from "../song-rush/lobby-manager";
-import QualiManager from "../qualifier-lobby/lobby-manager";
-import AutoManager from "../auto-lobby/lobby-manager";
+import PveManager from "../lobbies/lobby-manager";
 import Matchmaker from "../matching/matchmaker";
 import { BanchoCommand } from "../types/commands";
 import pvp from "./pvp";
-import { songRushLobby } from "./song-rush";
 import { countActiveLobbies, countQueuedPlayers } from "./admin";
-import { qualifierLobby } from "./qualifiers";
 
-export function init(
-   matchmaker: Matchmaker,
-   lobbyManager: LobbyManager,
-   pveManager: PveManager,
-   qualiManager: QualiManager,
-   autoManager: AutoManager
-) {
+export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveManager: PveManager) {
    const commands: [string, any][] = [
-      ["auto", (msg: PrivateMessage) => songRushLobby(msg, autoManager)],
+      ["auto", pveManager.createLobby],
       ["queue", pvp.queue],
       ["q", pvp.queue],
       ["unq", pvp.unqueue],
@@ -28,7 +18,7 @@ export function init(
       ["invite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["reinvite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["lobby", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
-      ["pve", (msg: PrivateMessage) => songRushLobby(msg, pveManager)],
+      ["pve", pveManager.createLobby],
       [
          "counts",
          (msg: PrivateMessage) => {
@@ -36,7 +26,7 @@ export function init(
             countQueuedPlayers(msg, matchmaker);
          }
       ],
-      ["quali", (msg: PrivateMessage) => qualifierLobby(msg, qualiManager)]
+      ["quali", pveManager.createLobby]
    ];
    commands.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
    const commandList = "Commands list: info, q, unq, lobby, pve";
