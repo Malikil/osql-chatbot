@@ -46,9 +46,10 @@ matchmaker.on("match", (p, mode, variant) => {
 });
 
 // Clean up when asked to exit
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
    console.log("SIGTERM - Exit process...");
    matchmaker.end();
+   await pveManager.terminateLobbies();
    client.removeAllListeners("PM");
    client.disconnect();
 

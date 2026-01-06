@@ -35,18 +35,17 @@ class LobbyManager {
          case "pve":
             lobby = new SongRushLobby(msg.user, mode);
             break;
-         case 'auto':
+         case "auto":
             lobby = new AutoLobby(msg.user, mode);
             break;
-         case 'quali':
+         case "quali":
             lobby = new QualifierLobby(msg.user, mode);
             break;
          default:
             return;
       }
       if (maniamode) lobby.setManiaMode(maniamode);
-      this.#activeLobbies.push(lobby);
-      lobby.once("closed", mp => {
+      const handleClose = (mp: number) => {
          const i = this.#activeLobbies.findIndex(l => l === lobby);
          this.#activeLobbies.splice(i, 1);
          fetch(`${process.env.INTERNAL_URL}/api/db/pve`, {
@@ -54,9 +53,19 @@ class LobbyManager {
             body: JSON.stringify({ mp }),
             headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH || ""]]
          }).then(() => console.log("Results submitted"));
-      });
-      await lobby.setupFromArgs(args);
-      await lobby.startMatch();
+      };
+      lobby.once("closed", handleClose);
+      try {
+         await lobby.setupFromArgs(args);
+         await lobby.startMatch();
+         this.#activeLobbies.push(lobby);
+      } catch (err) {
+         console.error(err);
+         lobby.closeLobby().catch(err2 => {
+            console.warn("Close failed lobby error", err2);
+            lobby.off("closed", handleClose);
+         });
+      }
    }
 
    reinvite(player: BanchoUser) {
@@ -65,6 +74,17 @@ class LobbyManager {
          lobby.invitePlayer(player);
          return true;
       } else return false;
+   }
+
+   async terminateLobbies() {
+      await Promise.all(
+         this.#activeLobbies.map(async lobby => {
+            await lobby.systemMessage(
+               "Process shutdown. All active lobbies have been abandoned."
+            );
+            lobby.closeLobby(1000);
+         })
+      );
    }
 }
 

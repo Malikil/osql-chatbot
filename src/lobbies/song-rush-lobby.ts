@@ -161,13 +161,16 @@ class SongRushLobby extends LobbyBase {
       if (this.mode === "mania" && this._maniamode) filter.cs = this._maniamode === "7k" ? 7 : 4;
       // Try to get a map
       let randMap: DbBeatmap | null = null;
+      let anythingAttempted = false;
       while (!randMap) {
          const pipeline = [{ $match: filter }, { $sample: { size: 1 } }];
          randMap = await mapsDb[this.mode].aggregate<DbBeatmap>(pipeline).next();
          if (!randMap) {
             if ("setid" in filter) delete filter.setid;
             else if ("_id" in filter) delete filter._id;
+            else if (anythingAttempted) throw new Error("Music is fake");
             else {
+               anythingAttempted = true;
                console.log(
                   `Unable to find ${
                      this.mode

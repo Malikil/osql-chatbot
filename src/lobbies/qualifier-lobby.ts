@@ -30,7 +30,7 @@ class QualifierLobby extends LobbyBase {
       // Figure out the maplist
       let mods: BanchoMod[] = [];
       let freemod = false;
-      for (let nextArg = args.shift() || ''; nextArg; nextArg = args.shift() || '') {
+      for (let nextArg = args.shift() || ""; nextArg; nextArg = args.shift() || "") {
          const id = parseInt(nextArg);
          if (id)
             this.#maplist.push({
@@ -52,19 +52,23 @@ class QualifierLobby extends LobbyBase {
       );
       return channel.lobby;
    }
-   async startMatch() {
+   protected override async _startMatch() {
       // Create the lobby
       await this.lobby.setSettings(
          BanchoLobbyTeamModes.HeadToHead,
          BanchoLobbyWinConditions.ScoreV2,
          8
       );
-      // Invite player
-      console.log("Invite player");
-      await this.lobby.invitePlayer(`#${this.#player.id}`);
+      await this.invitePlayer(this.#player);
    }
 
-   protected async _onPlayerJoined({ player }: { player: BanchoLobbyPlayer; slot: number; team: string; }): Promise<void> {
+   protected async _onPlayerJoined({
+      player
+   }: {
+      player: BanchoLobbyPlayer;
+      slot: number;
+      team: string;
+   }): Promise<void> {
       if (player.user.username === this.#player.username) {
          console.log(`${this.lobby.id} - Player joined`);
          this.#nextSong();
@@ -80,7 +84,7 @@ class QualifierLobby extends LobbyBase {
          if (this.lobby.slots.filter(u => u).length > 0) return;
 
          this.lobby.channel.sendMessage("All players left. Lobby will close");
-         this.emit('finished', lobbyid);
+         this.emit("finished", lobbyid);
          this.closeLobby(5000);
       }
    }
