@@ -2,6 +2,8 @@ import { BanchoClient, BanchoLobby, BanchoLobbyPlayer, BanchoLobbyPlayerScore, B
 import EventEmitter from "node:events";
 import { GameMode } from "../types/global";
 
+const INACTIVE_TIME = 25 * 60 * 1000;
+
 export default abstract class LobbyBase extends EventEmitter<{
    finished: [mp: number];
    closing: [mp: number];
@@ -11,12 +13,20 @@ export default abstract class LobbyBase extends EventEmitter<{
    #lobby?: BanchoLobby;
    readonly mode;
    protected _maniamode?: "4k" | "7k";
+   #inactivityTimer: NodeJS.Timeout;
 
    constructor(bancho: BanchoClient, mode: GameMode) {
       super();
       this._bancho = bancho;
       this.mode = mode;
+
+      this.#inactivityTimer = setTimeout(() => {});
    }
+
+   resetInactivity = () => {
+      clearTimeout(this.#inactivityTimer);
+      this.#inactivityTimer = setTimeout(() => this.closeLobby(), INACTIVE_TIME);
+   };
 
    async setupFromArgs(args: string[]) {}
 
@@ -42,6 +52,7 @@ export default abstract class LobbyBase extends EventEmitter<{
 
       // Do subclass specific setup
       await this._startMatch();
+      this.resetInactivity();
    }
    protected abstract _createLobby(): Promise<BanchoLobby>;
    protected async _startMatch(): Promise<void> {}
@@ -51,6 +62,7 @@ export default abstract class LobbyBase extends EventEmitter<{
       slot: number;
       team: string;
    }) => {
+      this.resetInactivity();
       console.log(this.lobby.id, `${info.player.user.ircUsername} joined the lobby`);
       this._onPlayerJoined(info);
    };
@@ -61,12 +73,14 @@ export default abstract class LobbyBase extends EventEmitter<{
    }) {}
 
    #playerLeftHandler = async (player: BanchoLobbyPlayer) => {
+      this.resetInactivity();
       console.log(this.lobby.id, `${player.user.ircUsername} left the lobby`);
       this._onPlayerLeft(player);
    };
    protected async _onPlayerLeft(player: BanchoLobbyPlayer) {}
 
    #playersReadyHandler = async () => {
+      this.resetInactivity();
       await this._onPlayersReady();
    };
    /** Default: Start match after 5 seconds */
@@ -75,6 +89,7 @@ export default abstract class LobbyBase extends EventEmitter<{
    }
 
    #songFinishedHandler = async (scores: BanchoLobbyPlayerScore[]) => {
+      this.resetInactivity();
       await this._onSongFinished(scores);
    };
    protected async _onSongFinished(scores: BanchoLobbyPlayerScore[]) {}
@@ -89,12 +104,14 @@ export default abstract class LobbyBase extends EventEmitter<{
       return false;
    }
    async invitePlayer(player: BanchoUser) {
+      this.resetInactivity();
       console.log(this.lobby.id, "Invite player", player.username);
       return this.lobby.invitePlayer(`#${player.id}`);
    }
 
    async closeLobby(delay: number = 0) {
-      const mp = this.lobby.id || 0;
+      clearTimeout(this.#inactivityTimer);
+      const mp = this.lobby?.id ?? 0;
       this.emit("closing", mp);
       try {
          if (!this.#lobby) throw new Error("No lobby exists for cleanup");
