@@ -14,8 +14,9 @@ import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 import LobbyBase from "./lobby-base";
+import { effectiveRating } from "../helpers/ratings";
 
-const STEP_SIZE = 20;
+const STEP_SIZE = 10;
 
 class SongRushLobby extends LobbyBase {
    #player;
@@ -30,7 +31,7 @@ class SongRushLobby extends LobbyBase {
       id: number;
       setid: number;
       rating: number;
-      mod: SimpleMod;
+      dt: boolean;
    };
 
    constructor(player: BanchoUser, mode: GameMode = "osu") {
@@ -46,11 +47,13 @@ class SongRushLobby extends LobbyBase {
       // Current pick will be set whenever nextMap runs. The only time it's referenced is after a map finishes.
       // If I check for it myself all I would do is throw an error to make typescript stop complaining.
       // A default null reference error will serve literally the exact same purpose
-      this.#currentPick = { mod: "nm" } as any;
+      this.#currentPick = {} as any;
    }
 
    protected async _createLobby(): Promise<BanchoLobby> {
-      const channel = await this._bancho.createLobby(`Score Rush ${this.#player.username} - ${Date.now()}`);
+      const channel = await this._bancho.createLobby(
+         `Score Rush ${this.#player.username} - ${Date.now()}`
+      );
       return channel.lobby;
    }
    protected override async _startMatch() {
@@ -69,12 +72,18 @@ class SongRushLobby extends LobbyBase {
       await this.invitePlayer(this.#player);
    }
 
-   protected override async _onPlayerJoined({ player }: { player: BanchoLobbyPlayer, slot: number, team: string }) {
+   protected override async _onPlayerJoined({
+      player
+   }: {
+      player: BanchoLobbyPlayer;
+      slot: number;
+      team: string;
+   }) {
       if (player.user.id === this.#player.id) {
          if (this.#lobbyEnding) {
             await this.lobby.abortTimer();
-            this.lobby.off('timerEnded', this.#lobbyEnding);
-            this.lobby.channel.sendMessage('PvE player rejoined');
+            this.lobby.off("timerEnded", this.#lobbyEnding);
+            this.lobby.channel.sendMessage("PvE player rejoined");
          }
          this.#nextSong();
       }
@@ -87,7 +96,7 @@ class SongRushLobby extends LobbyBase {
          this.lobby.channel.sendMessage("PvE player left. Lobby will close");
          this.lobby.startTimer(60);
          this.#lobbyEnding = () => {
-            if (!this.#lobbyEnding) throw new Error('Missing lobby ending reference');
+            if (!this.#lobbyEnding) throw new Error("Missing lobby ending reference");
             this.lobby.off("timerEnded", this.#lobbyEnding);
             this.emit("finished", lobbyid);
             this.closeLobby();
@@ -110,7 +119,7 @@ class SongRushLobby extends LobbyBase {
             }
          }
       }
-   };
+   }
 
    #hpCalc(score?: BanchoLobbyPlayerScore) {
       if (!score) return -15;
@@ -185,27 +194,36 @@ class SongRushLobby extends LobbyBase {
          }
       }
 
-      const availableMods = (["nm", "hd", "hr", "dt"] as SimpleMod[]).filter(
-         mod =>
-            (mod !== this.#currentPick.mod || mod === "nm") &&
-            randMap.rating.rating * (randMap.mods[mod.toUpperCase()] || 1) > minRating &&
-            randMap.rating.rating * (randMap.mods[mod.toUpperCase()] || 1) < maxRating
-      );
-      const randMod = availableMods[(Math.random() * availableMods.length) | 0] || "nm";
+      const dtMult = randMap.mods["DT"] || 1;
+      const dtRating = effectiveRating(randMap.rating, this.mode, dtMult);
+      const dtAvailable = dtRating > minRating && dtRating < maxRating;
+      const setDt = dtAvailable && !this.#currentPick.dt && Math.random() > 0.5;
       // Set the map and update the next rating range
       await this.lobby.setMap(randMap._id, Mode[this.mode === "fruits" ? "ctb" : this.mode]);
-      await this.lobby.setMods(randMod, this.mode === "mania");
+      if (this.#currentPick.dt !== setDt) await this.lobby.setMods(setDt ? "DT" : "", true);
       this.#currentPick = {
          id: randMap._id,
          setid: randMap.setid,
-         mod: randMod,
+         dt: setDt,
          rating: randMap.rating.rating
       };
-      const randUpper = randMod.toUpperCase();
+
       this.lobby.channel.sendMessage(
-         `${randMap.title} +${randUpper} - Rating: ${randMap.rating.rating.toFixed()} x${(
-            randMap.mods[randUpper] || 1
-         ).toFixed(2)} (${(randMap.rating.rating * (randMap.mods[randUpper] || 1)).toFixed()})`
+         `${randMap.title} ${
+            setDt
+               ? `+DT - Rating: ${dtRating.toFixed()} (${randMap.rating.rating.toFixed()} x${dtMult.toFixed(
+                    2
+                 )})`
+               : `- Rating: ${randMap.rating.rating.toFixed()}`
+         } | HD ${effectiveRating(
+            randMap.rating,
+            this.mode,
+            dtMult * (randMap.mods["HD"] || 1)
+         ).toFixed()}, HR ${effectiveRating(
+            randMap.rating,
+            this.mode,
+            dtMult * (randMap.mods["HR"] || 1)
+         ).toFixed()}`
       );
    }
 
