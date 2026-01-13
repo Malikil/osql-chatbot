@@ -19,6 +19,8 @@ jobs:
             export PATH="${{ secrets.GCP_NPM_PATH }}:$PATH"
             git fetch origin
             git reset --hard origin/master
+            npm ci || { echo "Failed to install dependencies"; exit 1; }
             npm run build || { echo "Build command failed"; exit 1; }
+            npm prune --omit=dev
             sudo systemctl restart mpsq-bot
             echo "Deployment completed successfully"
