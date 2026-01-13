@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
           script: |
-            cd ${{ secrets.GCP_BOT_PATH }} || { echo "Bot directory not fount"; exit 1; }
+            cd ${{ secrets.GCP_BOT_PATH }} || { echo "Bot directory not found"; exit 1; }
             export PATH="${{ secrets.GCP_NPM_PATH }}:$PATH"
             git fetch origin
             git reset --hard origin/master
