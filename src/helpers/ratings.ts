@@ -2,51 +2,61 @@ import { Glicko2 } from "glicko2";
 import { GameMode, Rating } from "../types/global";
 import { logit, sigmoid } from "./mathplus";
 
-const MIN_TARGETS = {
-   osu: 100000,
+const SIGMOID_WIDTH = 6;
+// Updated: OWC'25 MWC7K'26
+const MIN_ABSOLUTE = {
+   osu: 92099,
    fruits: 500000,
    taiko: 300000,
-   mania: 600000
+   mania: 595268
+};
+const MIN_TARGETS = {
+   osu: 105432,
+   fruits: 500000,
+   taiko: 300000,
+   mania: 630832
 };
 const MAX_TARGETS = {
-   osu: 900000,
+   osu: 892519,
    fruits: 900000,
    taiko: 900000,
-   mania: 950000
+   mania: 957745
+};
+const MAX_ABSOLUTE = {
+   osu: 906084,
+   fruits: 900000,
+   taiko: 900000,
+   mania: 963416
 };
 
-function matchResultValue(
-   score: number,
-   gamemode: GameMode
-) {
+function matchResultValue(score: number, gamemode: GameMode) {
    const min: number = MIN_TARGETS[gamemode];
    const max: number = MAX_TARGETS[gamemode];
+   const absMin = MIN_ABSOLUTE[gamemode];
+   const absMax = MAX_ABSOLUTE[gamemode];
 
-   if (score < min) return 0;
-   if (score > max) return 1;
+   if (score < absMin) return 0;
+   if (score > absMax) return 1;
 
    const mid = (min + max) / 2;
    const width = max - min;
-   const k = 4 / width;
-
-   const fMin = sigmoid((-k * width) / 2);
-   const fMax = sigmoid((k * width) / 2);
+   const k = SIGMOID_WIDTH / width;
    const raw = sigmoid(k * (score - mid));
+
+   const fMin = sigmoid(k * (absMin - mid));
+   const fMax = sigmoid(k * (absMax - mid));
 
    return (raw - fMin) / (fMax - fMin);
 }
 
-function scoreFromResult(
-   result: number,
-   gamemode: GameMode
-) {
+function scoreFromResult(result: number, gamemode: GameMode) {
    if (result <= 0) return 0;
    if (result >= 1) return 1000000;
    const min = MIN_TARGETS[gamemode];
    const max = MAX_TARGETS[gamemode];
    const mid = (min + max) / 2;
    const width = max - min;
-   const k = 4 / width;
+   const k = SIGMOID_WIDTH / width;
    // Avoid infinites
    const eps = 1e-9;
    const r = Math.min(1 - eps, Math.max(eps, result));
@@ -71,7 +81,6 @@ function predictOutcome(
    return sigmoid(logit(simplePredict) + residual);
 }
 
-
 export function effectiveRating(baseRating: Rating, mode: GameMode, modMult: number) {
    const baseOutcome = 0.5;
    const baseScore = scoreFromResult(baseOutcome, mode);
@@ -81,7 +90,9 @@ export function effectiveRating(baseRating: Rating, mode: GameMode, modMult: num
    console.log(`Score: ${baseScore.toFixed()} / ${modMult.toFixed(2)} = ${targetScore.toFixed()}`);
    console.log(`Target outcome: ${targetOutcome.toFixed(4)}`);
 
-   let [lo, hi] = [baseRating.rating, baseRating.rating * modMult].sort((a, b) => a - b);
+   let [lo, hi] = [baseRating.rating, baseRating.rating * modMult * Math.sqrt(modMult)].sort(
+      (a, b) => a - b
+   );
    console.log(`Search ratings within ${lo.toFixed()} to ${hi.toFixed()}`);
    for (let i = 0; i < 25; i++) {
       const mid = (lo + hi) / 2;
