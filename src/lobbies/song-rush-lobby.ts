@@ -14,7 +14,7 @@ import { mapsDb, playersDb } from "../db/connection";
 import { DbBeatmap } from "../types/database.beatmap";
 import { Filter } from "mongodb";
 import LobbyBase from "./lobby-base";
-import { effectiveRating } from "../helpers/ratings";
+import { effectiveRating, MAX_TARGETS, MIN_TARGETS } from "../helpers/ratings";
 
 const STEP_SIZE = 10;
 
@@ -123,14 +123,9 @@ class SongRushLobby extends LobbyBase {
 
    #hpCalc(score?: BanchoLobbyPlayerScore) {
       if (!score) return -15;
-      const coef = {
-         osu: [100000, 900000],
-         fruits: [500000, 900000],
-         taiko: [300000, 900000],
-         mania: [600000, 950000]
-      };
       const fail = +!score.pass * 10;
-      const [min, max] = coef[this.mode];
+      const min = MIN_TARGETS[this.mode];
+      const max = MAX_TARGETS[this.mode];
       const mid = (max + min) / 2;
       const w = (max - min) / 2;
       const hpMod = Math.floor(6 * Math.tanh((score.score - mid) / w));

@@ -10,13 +10,13 @@ const MIN_ABSOLUTE = {
    taiko: 300000,
    mania: 595268
 };
-const MIN_TARGETS = {
+export const MIN_TARGETS = {
    osu: 105432,
    fruits: 500000,
    taiko: 300000,
    mania: 630832
 };
-const MAX_TARGETS = {
+export const MAX_TARGETS = {
    osu: 892519,
    fruits: 900000,
    taiko: 900000,
