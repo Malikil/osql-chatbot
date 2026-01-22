@@ -207,16 +207,15 @@ class SongRushLobby extends LobbyBase {
          this.lobby.channel.sendMessage(
             `${randMap.title} +DT - Rating: ${dtRating.toFixed()} (${randMap.rating.rating.toFixed()} x${dtMult.toFixed(
                2
-            )})
-          | HD ${effectiveRating(
-             randMap.rating,
-             this.mode,
-             dtMult * (randMap.mods["HD"] || 1)
-          ).toFixed()}, HR ${effectiveRating(
-             randMap.rating,
-             this.mode,
-             dtMult * (randMap.mods["HR"] || 1)
-          ).toFixed()}`
+            )}) | HD ${effectiveRating(
+               randMap.rating,
+               this.mode,
+               dtMult * (randMap.mods["HD"] || 1)
+            ).toFixed()}, HR ${effectiveRating(
+               randMap.rating,
+               this.mode,
+               dtMult * (randMap.mods["HR"] || 1)
+            ).toFixed()}`
          );
       else
          this.lobby.channel.sendMessage(
