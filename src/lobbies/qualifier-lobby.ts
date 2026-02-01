@@ -12,6 +12,7 @@ import { Mode } from "nodesu";
 import { GameMode } from "../types/global";
 import { mapsDb } from "../db/connection";
 import LobbyBase from "./lobby-base";
+import { effectiveRating } from "../helpers/ratings";
 
 class QualifierLobby extends LobbyBase {
    #player;
@@ -106,11 +107,11 @@ class QualifierLobby extends LobbyBase {
          const rating = dbMap.rating.rating;
          const modMult = shortMods.reduce((mult, mod) => mult * (dbMap.mods[mod] || 1), 1);
          this.lobby.channel.sendMessage(
-            `${dbMap.title} +${
-               shortMods.join("") || "NM"
-            } - Rating: ${rating.toFixed()} x${modMult.toFixed(2)} (${(
-               rating * modMult
-            ).toFixed()})`
+            `${dbMap.title} +${shortMods.join("") || "NM"} - Rating: ${
+               shortMods.length < 1
+                  ? rating.toFixed()
+                  : `${effectiveRating(dbMap.rating, this.mode, modMult)} (${rating.toFixed()} x${modMult.toFixed(2)})`
+            }`
          );
       } else
          this.lobby.channel.sendMessage(
