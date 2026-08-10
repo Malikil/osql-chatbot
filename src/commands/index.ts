@@ -17,7 +17,7 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager) {
       ["invite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["reinvite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["lobby", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
-      ["pve", lobbyManager.createLobby],
+      ["lives", lobbyManager.createLobby],
       [
          "counts",
          (msg: PrivateMessage) => {
@@ -26,13 +26,13 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager) {
          }
       ],
       ["quali", lobbyManager.createLobby],
-      ["testmatch", lobbyManager.createLobby]
+      ["pve", lobbyManager.createLobby]
    ];
    commands.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-   const commandList = "Commands list: info, q, unq, lobby, pve";
+   const infoText = `View info, rules, and commands [${process.env.INTERNAL_URL} Here]`;
    return {
-      commands: msg => msg.user.sendMessage(commandList),
-      info: msg => msg.user.sendMessage(commandList),
+      commands: msg => msg.user.sendMessage(infoText),
+      info: msg => msg.user.sendMessage(infoText),
       ...Object.fromEntries(commands.map(com => [com[0], msg => com[1](msg, matchmaker)]))
    } as { [command: string]: BanchoCommand };
 }

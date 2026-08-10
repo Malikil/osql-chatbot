@@ -36,7 +36,7 @@ class LobbyManager {
 
       let lobby: LobbyBase;
       switch (lobbyType) {
-         case "pve":
+         case "lives":
             lobby = new SongRushLobby(msg.user, mode);
             break;
          case "auto":
@@ -45,7 +45,7 @@ class LobbyManager {
          case "quali":
             lobby = new QualifierLobby(msg.user, mode);
             break;
-         case "testmatch":
+         case "pve":
             lobby = new PvELobbyRef(msg.user, mode);
             break;
          default:
