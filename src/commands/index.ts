@@ -1,14 +1,13 @@
 import { PrivateMessage } from "bancho.js";
-import LobbyManager from "../matching/lobby-manager";
-import PveManager from "../lobbies/lobby-manager";
+import LobbyManager from "../lobbies/lobby-manager";
 import Matchmaker from "../matching/matchmaker";
 import { BanchoCommand } from "../types/commands";
 import pvp from "./pvp";
 import { countActiveLobbies, countQueuedPlayers } from "./admin";
 
-export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveManager: PveManager) {
+export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager) {
    const commands: [string, any][] = [
-      ["auto", pveManager.createLobby],
+      ["auto", lobbyManager.createLobby],
       ["queue", pvp.queue],
       ["q", pvp.queue],
       ["unq", pvp.unqueue],
@@ -18,7 +17,7 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveMana
       ["invite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["reinvite", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
       ["lobby", (msg: PrivateMessage) => lobbyManager.reinvite(msg.user)],
-      ["pve", pveManager.createLobby],
+      ["pve", lobbyManager.createLobby],
       [
          "counts",
          (msg: PrivateMessage) => {
@@ -26,7 +25,8 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager, pveMana
             countQueuedPlayers(msg, matchmaker);
          }
       ],
-      ["quali", pveManager.createLobby]
+      ["quali", lobbyManager.createLobby],
+      ["testmatch", lobbyManager.createLobby]
    ];
    commands.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
    const commandList = "Commands list: info, q, unq, lobby, pve";

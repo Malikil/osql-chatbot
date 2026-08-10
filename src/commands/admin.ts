@@ -1,5 +1,5 @@
 import { PrivateMessage } from "bancho.js";
-import LobbyManager from "../matching/lobby-manager";
+import LobbyManager from "../lobbies/lobby-manager";
 import Matchmaker from "../matching/matchmaker";
 
 export function countActiveLobbies(msg: PrivateMessage, lobbyManager: LobbyManager) {
@@ -15,8 +15,4 @@ export function countQueuedPlayers(msg: PrivateMessage, matchmaker: Matchmaker) 
       return;
 
    msg.user.sendMessage(`Currently ${matchmaker.playersInQueue()} players in queue`);
-}
-
-export function stopMatchmaking(msg: PrivateMessage, lobbyManager: LobbyManager) {
-   if (msg.user.username !== 'Malikil') return;
 }

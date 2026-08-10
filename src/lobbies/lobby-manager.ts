@@ -7,6 +7,7 @@ import QualifierLobby from "./qualifier-lobby";
 import { MMPlayerObj } from "../types/matchmaking";
 import PvPLobbyRef from "./mp-lobbies/pvp-match";
 import { LobbyResult } from "../types/lobby";
+import PvELobbyRef from "./mp-lobbies/pve-match";
 
 class LobbyManager {
    #activeLobbies: LobbyBase[];
@@ -44,13 +45,16 @@ class LobbyManager {
          case "quali":
             lobby = new QualifierLobby(msg.user, mode);
             break;
+         case "testmatch":
+            lobby = new PvELobbyRef(msg.user, mode);
+            break;
          default:
             return;
       }
       if (maniamode) lobby.setManiaMode(maniamode);
       const handleClose = (mp: number) => {
          const i = this.#activeLobbies.findIndex(l => l === lobby);
-         this.#activeLobbies.splice(i, 1);
+         if (i >= 0) this.#activeLobbies.splice(i, 1);
          fetch(`${process.env.INTERNAL_URL}/api/db/pve`, {
             method: "POST",
             body: JSON.stringify({ mp }),
@@ -58,15 +62,18 @@ class LobbyManager {
          }).then(() => console.log("Results submitted"));
       };
       lobby.once("closed", handleClose);
+      this.#activeLobbies.push(lobby);
       try {
          await lobby.setupFromArgs(args);
          await lobby.startMatch();
-         this.#activeLobbies.push(lobby);
       } catch (err) {
          console.error(err);
          lobby.closeLobby().catch(err2 => {
             console.warn("Close failed lobby error", err2);
             lobby.off("closed", handleClose);
+            // Remove failed lobby from list
+            const i = this.#activeLobbies.findIndex(l => l === lobby);
+            if (i >= 0) this.#activeLobbies.splice(i, 1);
          });
       }
    }
@@ -79,21 +86,35 @@ class LobbyManager {
       console.log("Create match with players", players);
       const lobby = new PvPLobbyRef(players, this.#bancho, mode, variant);
       const handleFinished = (result: LobbyResult) => {
-         const i = this.#activeLobbies.findIndex(l => l === lobby);
-         this.#activeLobbies.splice(i, 1);
          // Submit results to pvp endpoint
+         fetch(`${process.env.INTERNAL_URL}/api/db/pvp`, {
+            method: "POST",
+            body: JSON.stringify({
+               mp: result.mp,
+               defaultWinner: result.defaultWinner
+            }),
+            headers: [["Authorization", process.env.MATCH_SUBMIT_AUTH || ""]]
+         }).then(() => console.log("PvP result submitted"));
          lobby.off("finished", handleFinished);
       };
+      const handleClose = () => {
+         const i = this.#activeLobbies.findIndex(l => l === lobby);
+         if (i >= 0) this.#activeLobbies.splice(i, 1);
+         lobby.off("closed", handleClose);
+      };
       lobby.once("finished", handleFinished);
+      lobby.once("closed", handleClose);
+      this.#activeLobbies.push(lobby);
       try {
          await lobby.startMatch();
-         this.#activeLobbies.push(lobby);
       } catch (err) {
          console.error(err);
          lobby.closeLobby().catch(err2 => {
             console.warn("Close failed lobby error", err2);
-            lobby.off("finished", handleFinished);
+            // Remove failed lobby from list and remove listener
+            handleClose();
          });
+         lobby.off("finished", handleFinished);
       }
    }
 
@@ -112,6 +133,10 @@ class LobbyManager {
             await lobby.closeLobby(1000);
          })
       );
+   }
+
+   lobbyCount() {
+      return this.#activeLobbies.length;
    }
 }
 

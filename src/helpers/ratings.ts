@@ -1,31 +1,31 @@
 import { Glicko2 } from "glicko2";
-import { GameMode, Rating } from "../types/global";
+import { GameMode, Mod, Rating } from "../types/global";
 import { logit, sigmoid } from "./mathplus";
 
 const SIGMOID_WIDTH = 6;
-// Updated: OWC'25 MWC7K'26
+// Updated: OWC'25 MWC7K'26 TWC'26 CWC'26
 const MIN_ABSOLUTE = {
    osu: 92099,
-   fruits: 500000,
-   taiko: 300000,
+   fruits: 459734,
+   taiko: 323917,
    mania: 595268
 };
 export const MIN_TARGETS = {
    osu: 105432,
-   fruits: 500000,
-   taiko: 300000,
+   fruits: 497147,
+   taiko: 357592,
    mania: 630832
 };
 export const MAX_TARGETS = {
    osu: 892519,
-   fruits: 900000,
-   taiko: 900000,
+   fruits: 906029,
+   taiko: 920871,
    mania: 957745
 };
 const MAX_ABSOLUTE = {
    osu: 906084,
-   fruits: 900000,
-   taiko: 900000,
+   fruits: 918046,
+   taiko: 931134,
    mania: 963416
 };
 
@@ -49,7 +49,15 @@ function matchResultValue(score: number, gamemode: GameMode) {
    return (raw - fMin) / (fMax - fMin);
 }
 
-function scoreFromResult(result: number, gamemode: GameMode) {
+export function scoreFromResult(
+   result: number,
+   gamemode: GameMode,
+   mods: {
+      mods: Mod[];
+      player: Partial<Record<Mod, number>>;
+      map: Partial<Record<Mod, number>>;
+   } | null = null
+) {
    if (result <= 0) return 0;
    if (result >= 1) return 1000000;
    const min = MIN_TARGETS[gamemode];
@@ -61,11 +69,17 @@ function scoreFromResult(result: number, gamemode: GameMode) {
    const eps = 1e-9;
    const r = Math.min(1 - eps, Math.max(eps, result));
    const predictScore = mid + logit(r) / k;
+   let modMult = 1;
+   if (mods) {
+      const playerMult = mods.mods.reduce((mult, mod) => mult * (mods.player[mod] || 1), 1);
+      const mapMult = mods.mods.reduce((mult, mod) => mult * (mods.map[mod] || 1), 1);
+      modMult = mapMult * playerMult;
+   }
 
-   return Math.max(0, Math.min(predictScore, 1000000));
+   return Math.max(0, Math.min(predictScore / modMult, 1000000));
 }
 
-function predictOutcome(
+export function predictOutcome(
    playerRating: Rating,
    mapRating: Rating,
    playerSkills: number[] = [],
@@ -76,7 +90,7 @@ function predictOutcome(
    const mapCalc = calculator.makePlayer(mapRating.rating, mapRating.rd, mapRating.vol);
    const simplePredict = calculator.predict(playerCalc, mapCalc);
    let residual = 0;
-   for (let i = 0; i < playerSkills.length; i++) residual += playerSkills[i] * mapSkills[i];
+   for (let i = 0; i < playerSkills.length; i++) residual += playerSkills[i] * mapSkills[i] || 0;
 
    return sigmoid(logit(simplePredict) + residual);
 }

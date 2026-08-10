@@ -38,21 +38,19 @@ abstract class MpLobbyBase extends LobbyBase {
    protected _getActivePlayerIndex() {
       return this.#lobbyState.nextPlayer;
    }
-
-   protected async _startMatch(): Promise<void> {
-      this._fetchMappool();
-
-      if (!this.#mappool) {
-         await this.systemMessage("Pool failed to load, lobby will close");
-         await this.closeLobby(3000);
-         return;
-      }
-
-      // Allow subclass to invite players
-      await this._inviteAll();
+   protected _getActivePick() {
+      return { ...this.#lobbyState.activePick };
    }
 
-   protected async _fetchMappool(): Promise<void> {
+   protected async _startMatch(): Promise<void> {
+      this.#mappool = await this._fetchMappool();
+      // Allow subclass to invite players
+      await this._inviteAll();
+      // Set initial mod settings for mania
+      if (this.mode === "mania") this.lobby.setMods("", true);
+   }
+
+   protected async _fetchMappool(): Promise<Mappool | undefined> {
       const playerParams = this._getPlayerIds().join("&p=");
       const mode = this._maniamode || this.mode;
 
@@ -65,8 +63,9 @@ abstract class MpLobbyBase extends LobbyBase {
             throw new Error(`Mappool request failed: ${response.status}`);
          }
 
-         this.#mappool = (await response.json()) as Mappool;
-         console.log(this.#mappool);
+         const mappool = (await response.json()) as Mappool;
+         console.log(mappool);
+         return mappool;
       } catch (err) {
          console.warn("Failed to fetch mappool", err);
       }
@@ -84,8 +83,7 @@ abstract class MpLobbyBase extends LobbyBase {
       if (!this.#mappool) {
          await this.systemMessage("Pool failed to load, attempting refresh");
 
-         await this._fetchMappool();
-
+         this.#mappool = await this._fetchMappool();
          if (!this.#mappool) {
             await this.systemMessage("Fetch failed, lobby will close");
             console.warn("Failed to re-fetch pool");
@@ -109,7 +107,8 @@ abstract class MpLobbyBase extends LobbyBase {
       const lUrl = encodeURIComponent(this.lobby.name);
 
       const searchParams =
-         `nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}` + `&l=${lUrl}`;
+         `m=${this.mode}&nm=${nmUrl}&hd=${hdUrl}&hr=${hrUrl}&dt=${dtUrl}&fm=${fmUrl}` +
+         `&l=${lUrl}`;
 
       await this.systemMessage(
          `Mappool can be found here: ` +
@@ -197,12 +196,22 @@ abstract class MpLobbyBase extends LobbyBase {
 
       await this.systemMessage(`Banned map: ${map}`);
       await this._printPlayerPrompt();
+      await this._printAvailableMaps();
    }
 
    async #pickMap(map: number, mod: ModPool) {
       await this.lobby.setMap(map, Mode[this.mode === "fruits" ? "ctb" : this.mode]);
 
-      await this.lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
+      // Mania is always freemod. That should be set at lobby creation and never changed
+      if (this.mode !== "mania") {
+         // CtB allows HD to be picked on HR and DT picks
+         if (this.mode === "fruits") {
+            if (mod === "dt") this.lobby.setMods("NF DT", true);
+            else if (mod === "fm" || mod === "hr") this.lobby.setMods("", true);
+            else this.lobby.setMods(`NF ${mod === "hd" ? "HD" : ""}`);
+         } else
+            await this.lobby.setMods(`NF ${mod !== "nm" ? mod.toUpperCase() : ""}`, mod === "fm");
+      }
 
       this.#lobbyState.activePick = { map, modpool: mod };
    }
@@ -247,6 +256,32 @@ abstract class MpLobbyBase extends LobbyBase {
                await this.systemMessage("NoFail is required. HD or HR is required.");
                return;
             }
+         }
+      } else if (this.mode === "fruits") {
+         if (this.#lobbyState.activePick.modpool === "hr") {
+            await this.lobby.updateSettings();
+            if (
+               this.lobby.slots.some(player => {
+                  if (!player) return false;
+                  return (
+                     !player.mods.includes(BanchoMods.NoFail) ||
+                     !player.mods.includes(BanchoMods.HardRock)
+                  );
+               })
+            )
+               return this.systemMessage("NoFail and HardRock are both required.");
+         } else if (this.#lobbyState.activePick.modpool === "dt") {
+            await this.lobby.updateSettings();
+            if (
+               this.lobby.slots.some(player => {
+                  if (!player) return false;
+                  return (
+                     !player.mods.includes(BanchoMods.NoFail) ||
+                     player.mods.includes(BanchoMods.Easy)
+                  );
+               })
+            )
+               return this.systemMessage("NoFail is required. HD optional");
          }
       }
 

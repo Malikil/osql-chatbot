@@ -1,6 +1,5 @@
 import { BanchoClient } from "bancho.js";
 import Matchmaker from "./matching/matchmaker";
-import LobbyManager from "./matching/lobby-manager";
 import PveManager from "./lobbies/lobby-manager";
 import { init as commandInit } from "./commands";
 
@@ -13,10 +12,9 @@ const matchmaker = new Matchmaker({
    searchRangeIncrement: p =>
       Math.sqrt(p.range * p.range + (p.player.rating.rd * p.player.rating.rd) / 5)
 });
-const lobbyManager = new LobbyManager(client);
-const pveManager = new PveManager(client);
+const lobbyManager = new PveManager(client);
 
-const commands = commandInit(matchmaker, lobbyManager, pveManager);
+const commands = commandInit(matchmaker, lobbyManager);
 
 client
    .connect()
@@ -38,8 +36,8 @@ client
    .catch(err => console.error(err));
 matchmaker.on("match", (p, mode, variant) => {
    console.log("Create match with players", p);
-   lobbyManager.createLobby(
-      p.sort((a, b) => a.rating.rating - b.rating.rating),
+   lobbyManager.createMatch(
+      p.toSorted((a, b) => a.rating.rating - b.rating.rating),
       mode,
       variant
    );
@@ -49,7 +47,7 @@ matchmaker.on("match", (p, mode, variant) => {
 process.on("SIGTERM", async () => {
    console.log("SIGTERM - Exit process...");
    matchmaker.end();
-   await pveManager.terminateLobbies();
+   await lobbyManager.terminateLobbies();
    client.removeAllListeners("PM");
    client.disconnect();
 

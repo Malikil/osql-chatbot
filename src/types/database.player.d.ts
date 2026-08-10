@@ -9,7 +9,6 @@ export interface MatchHistoryMap {
 export interface MatchHistorySong {
    map: MatchHistoryMap;
    mods: number;
-   modpool?: ModPool;
    score: number;
    opponentScore?: number;
 }
@@ -34,29 +33,21 @@ export interface PvPInfo extends Rating {
    matches: PvPMatchHistory[];
    losses: number;
    wins: number;
+   lastPlayed?: Date;
 }
 
 export interface PvEInfo extends Rating {
-   matches: PvEMatchHistory[];
+   matches: MatchHistory[];
    games: number;
    songs: number;
-}
-
-export interface PracticePool {
-   name: string;
-   maps: {
-      id: number;
-      mod: ModPool;
-      scores: number[];
-   }[];
+   lastPlayed?: Date;
 }
 
 export interface ModeInfo {
    pvp?: PvPInfo;
    pve: PvEInfo;
    styles: number[];
-   pools: PracticePool[];
-   mods: ModMultipliers;
+   mods: Partial<Record<Mod, number>>;
 }
 
 export interface DbPlayer extends Record<GameMode, ModeInfo> {
