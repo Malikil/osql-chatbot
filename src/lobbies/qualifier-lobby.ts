@@ -85,7 +85,7 @@ class QualifierLobby extends LobbyBase {
          if (this.lobby.slots.filter(u => u).length > 0) return;
 
          this.lobby.channel.sendMessage("All players left. Lobby will close");
-         this.emit("finished", lobbyid);
+         this.emit("finished", { mp: lobbyid });
          this.closeLobby(5000);
       }
    }
@@ -110,7 +110,7 @@ class QualifierLobby extends LobbyBase {
             `${dbMap.title} +${shortMods.join("") || "NM"} - Rating: ${
                shortMods.length < 1
                   ? rating.toFixed()
-                  : `${effectiveRating(dbMap.rating, this.mode, modMult)} (${rating.toFixed()} x${modMult.toFixed(2)})`
+                  : `${effectiveRating(dbMap.rating, this.mode, modMult).toFixed()} (${rating.toFixed()} x${modMult.toFixed(2)})`
             }`
          );
       } else
@@ -129,7 +129,7 @@ class QualifierLobby extends LobbyBase {
 
    #matchCompleted = () => {
       this.lobby.channel.sendMessage("Lobby finished - submitting result to server");
-      this.emit("finished", this.lobby.id);
+      this.emit("finished", { mp: this.lobby.id });
       this.closeLobby(15000);
    };
 

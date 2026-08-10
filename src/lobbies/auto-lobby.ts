@@ -264,7 +264,7 @@ class AutoLobby extends LobbyBase {
 
    #matchCompleted = () => {
       this.lobby.channel.sendMessage("Lobby finished - submitting result to server");
-      this.emit('finished', this.lobby.id);
+      this.emit("finished", { mp: this.lobby.id });
       this.closeLobby(5000);
    };
 }

@@ -4,6 +4,9 @@ import { GameMode } from "../types/global";
 import SongRushLobby from "./song-rush-lobby";
 import AutoLobby from "./auto-lobby";
 import QualifierLobby from "./qualifier-lobby";
+import { MMPlayerObj } from "../types/matchmaking";
+import PvPLobbyRef from "./mp-lobbies/pvp-match";
+import { LobbyResult } from "../types/lobby";
 
 class LobbyManager {
    #activeLobbies: LobbyBase[];
@@ -68,6 +71,32 @@ class LobbyManager {
       }
    }
 
+   async createMatch(
+      players: MMPlayerObj[],
+      mode: GameMode,
+      variant: "4k" | "7k" | undefined = undefined
+   ) {
+      console.log("Create match with players", players);
+      const lobby = new PvPLobbyRef(players, this.#bancho, mode, variant);
+      const handleFinished = (result: LobbyResult) => {
+         const i = this.#activeLobbies.findIndex(l => l === lobby);
+         this.#activeLobbies.splice(i, 1);
+         // Submit results to pvp endpoint
+         lobby.off("finished", handleFinished);
+      };
+      lobby.once("finished", handleFinished);
+      try {
+         await lobby.startMatch();
+         this.#activeLobbies.push(lobby);
+      } catch (err) {
+         console.error(err);
+         lobby.closeLobby().catch(err2 => {
+            console.warn("Close failed lobby error", err2);
+            lobby.off("finished", handleFinished);
+         });
+      }
+   }
+
    reinvite(player: BanchoUser) {
       const lobby = this.#activeLobbies.find(l => l.hasPlayer(player));
       if (lobby) {
@@ -79,10 +108,8 @@ class LobbyManager {
    async terminateLobbies() {
       await Promise.all(
          this.#activeLobbies.map(async lobby => {
-            await lobby.systemMessage(
-               "Process shutdown. All active lobbies have been abandoned."
-            );
-            lobby.closeLobby(1000);
+            await lobby.systemMessage("Process shutdown. All active lobbies have been abandoned.");
+            await lobby.closeLobby(1000);
          })
       );
    }

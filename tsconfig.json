@@ -5,7 +5,9 @@
       "erasableSyntaxOnly": false,
       "verbatimModuleSyntax": false,
       "outDir": "build",
-      "allowJs": true
+      "allowJs": true,
+      "rootDir": "./src",
+      "types": ["node"]
    },
    "include": ["src/**/*.ts"]
 }

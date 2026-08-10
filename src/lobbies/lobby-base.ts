@@ -1,17 +1,18 @@
 import { BanchoClient, BanchoLobby, BanchoLobbyPlayer, BanchoLobbyPlayerScore, BanchoMessage, BanchoUser } from "bancho.js";
 import EventEmitter from "node:events";
 import { GameMode } from "../types/global";
+import { LobbyResult } from "../types/lobby";
 
 const INACTIVE_TIME = 25 * 60 * 1000;
 
 export default abstract class LobbyBase extends EventEmitter<{
-   finished: [mp: number];
+   finished: [result: LobbyResult];
    closing: [mp: number];
    closed: [mp: number];
 }> {
-   protected _bancho;
+   protected _bancho: BanchoClient;
    #lobby?: BanchoLobby;
-   readonly mode;
+   readonly mode: GameMode;
    protected _maniamode?: "4k" | "7k";
    #inactivityTimer: NodeJS.Timeout;
 
@@ -64,7 +65,7 @@ export default abstract class LobbyBase extends EventEmitter<{
    }) => {
       this.resetInactivity();
       console.log(this.lobby.id, `${info.player.user.ircUsername} joined the lobby`);
-      this._onPlayerJoined(info);
+      await this._onPlayerJoined(info);
    };
    protected async _onPlayerJoined(info: {
       player: BanchoLobbyPlayer;
@@ -75,7 +76,7 @@ export default abstract class LobbyBase extends EventEmitter<{
    #playerLeftHandler = async (player: BanchoLobbyPlayer) => {
       this.resetInactivity();
       console.log(this.lobby.id, `${player.user.ircUsername} left the lobby`);
-      this._onPlayerLeft(player);
+      await this._onPlayerLeft(player);
    };
    protected async _onPlayerLeft(player: BanchoLobbyPlayer) {}
 
@@ -125,10 +126,13 @@ export default abstract class LobbyBase extends EventEmitter<{
          console.warn(err);
       } finally {
          const lobby = this.#lobby;
-         setTimeout(async () => {
-            await lobby?.closeLobby().catch(err => console.warn(err));
-            this.emit("closed", mp);
-         }, delay);
+         await new Promise<void>(resolve =>
+            setTimeout(async () => {
+               await lobby?.closeLobby().catch(err => console.warn(err));
+               this.emit("closed", mp);
+               resolve();
+            }, delay)
+         );
       }
    }
 

@@ -98,7 +98,7 @@ class SongRushLobby extends LobbyBase {
          this.#lobbyEnding = () => {
             if (!this.#lobbyEnding) throw new Error("Missing lobby ending reference");
             this.lobby.off("timerEnded", this.#lobbyEnding);
-            this.emit("finished", lobbyid);
+            this.emit("finished", { mp: lobbyid });
             this.closeLobby();
          };
          this.lobby.on("timerEnded", this.#lobbyEnding);
@@ -229,7 +229,7 @@ class SongRushLobby extends LobbyBase {
 
    #matchCompleted = () => {
       this.lobby.channel.sendMessage("Lobby finished - submitting result to server");
-      this.emit("finished", this.lobby.id);
+      this.emit("finished", { mp: this.lobby.id });
       this.closeLobby(15000);
    };
 

@@ -13,7 +13,14 @@ export interface LobbyState {
    action: "pick" | "ban" | "tbban" | "tb";
    scores: number[];
    bans: number[];
-   picks: number[] & { nextPick: number; selectedModpool: ModPool };
+   picks: number[];
+   activePick: { map: number; modpool: ModPool };
+}
+
+export interface LobbyResult {
+   mp: number;
+   score?: { playerId: number; score: number }[];
+   defaultWinner?: number;
 }
 
 export interface LobbyEvents {
