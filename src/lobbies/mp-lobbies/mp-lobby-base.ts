@@ -41,6 +41,23 @@ abstract class MpLobbyBase extends LobbyBase {
    protected _getActivePick() {
       return { ...this.#lobbyState.activePick };
    }
+   protected get mappool() {
+      if (!this.#mappool) throw new Error("No mappool");
+      return structuredClone(this.#mappool);
+   }
+   protected _getAvailableMaps() {
+      if (!this.#mappool) return;
+
+      const unavailable = this.#lobbyState.bans.concat(this.#lobbyState.picks);
+      const available = Object.fromEntries(
+         Object.entries(this.#mappool).map(([k, v]) => [
+            k,
+            v.filter(bid => !unavailable.includes(bid))
+         ])
+      ) as Mappool;
+
+      return available;
+   }
 
    protected async _startMatch(): Promise<void> {
       this.#mappool = await this._fetchMappool();
@@ -147,6 +164,7 @@ abstract class MpLobbyBase extends LobbyBase {
             agg.push(modMaps);
             return agg;
          }, [])
+         .filter(s => s)
          .join(", ");
 
       await this.systemMessage(`Available maps: ${maplist}`);
@@ -190,9 +208,10 @@ abstract class MpLobbyBase extends LobbyBase {
 
       if (this.#lobbyState.action === "ban" && this.#lobbyState.bans.length >= 4) {
          this.#lobbyState.action = "pick";
-      } else if (this.#lobbyState.bans.length >= 6) this.#lobbyState.action = "tb";
+      } else if (this.#lobbyState.bans.length >= 7) this.#lobbyState.action = "tb";
 
-      this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
+      if (this.#lobbyState.action !== "tbban")
+         this.#lobbyState.nextPlayer = +!this.#lobbyState.nextPlayer;
 
       await this.systemMessage(`Banned map: ${map}`);
       await this._printPlayerPrompt();
@@ -318,7 +337,7 @@ abstract class MpLobbyBase extends LobbyBase {
       } else {
          this.#lobbyState.action = "tbban";
          await this.systemMessage(
-            `Tiebreaker! ${this._getPlayerName(this.#lobbyState.nextPlayer)} please ban two maps`
+            `Tiebreaker! ${this._getPlayerName(this.#lobbyState.nextPlayer)} please ban three maps`
          );
       }
 

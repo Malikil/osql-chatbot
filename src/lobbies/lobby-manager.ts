@@ -46,6 +46,7 @@ class LobbyManager {
             lobby = new QualifierLobby(msg.user, mode);
             break;
          case "pve":
+            // case "test":
             lobby = new PvELobbyRef(msg.user, mode);
             break;
          default:

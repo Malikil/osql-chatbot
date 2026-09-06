@@ -5,16 +5,17 @@ import {
    BanchoLobbyTeamModes,
    BanchoLobbyWinConditions,
    BanchoMessage,
-   BanchoUser,
-   BanchoClient
+   BanchoUser
 } from "bancho.js";
 
-import { GameMode, Mod } from "../../types/global";
+import { GameMode, Mod, ModPool } from "../../types/global";
 import MpLobbyBase from "./mp-lobby-base";
 import { mapsDb, playersDb } from "../../db/connection";
 import { gaussianRandom, logit, sigmoid } from "../../helpers/mathplus";
 import { predictOutcome, scoreFromResult } from "../../helpers/ratings";
 import { Mappool } from "../../types/lobby";
+import IStrategy from "./strategies/strategy";
+import Strategies from "./strategies";
 
 export default class PvELobbyRef extends MpLobbyBase {
    #player: BanchoUser;
@@ -27,10 +28,16 @@ export default class PvELobbyRef extends MpLobbyBase {
       DT: 1
    };
    #opponentTargetScore: number = 0;
+   #strategy?: IStrategy;
 
    constructor(player: BanchoUser, mode: GameMode = "osu", variant?: "4k" | "7k") {
       super(player.banchojs, mode, 7, variant);
       this.#player = player;
+   }
+
+   override async setupFromArgs(args: string[]): Promise<void> {
+      const [strat] = args;
+      this.#strategy = new Strategies.RandomStrategy();
    }
 
    protected async _createLobby(): Promise<BanchoLobby> {
@@ -121,6 +128,11 @@ export default class PvELobbyRef extends MpLobbyBase {
          HR: randBetween(modRanges.find(m => m.mod === "HR")),
          DT: randBetween(modRanges.find(m => m.mod === "DT"))
       };
+      this.#strategy?.initPlayer({
+         rating: this.#opponentRating,
+         mods: this.#opponentMods,
+         skills: this.#opponentSkills || []
+      });
 
       const lobbyChannel = await this._bancho.createLobby(
          `Training Match - MPSQ: ${this.#player.username} (${this.#playerRating.rating.toFixed()}) vs ${(
@@ -150,9 +162,16 @@ export default class PvELobbyRef extends MpLobbyBase {
          // Add some variance
          const RD_SCALE = 0.5;
          const REFERENCE_RD = 100;
-         const [sigma] = gaussianRandom(0, (RD_SCALE * this.#opponentRating.rd) / REFERENCE_RD);
+         const sigma = Math.max(
+            ...gaussianRandom(0, (RD_SCALE * this.#opponentRating.rd) / REFERENCE_RD)
+         );
          const generatedResult = sigmoid(logit(rawExpectedResult) + sigma);
-         console.log('Result adjustment:', rawExpectedResult, generatedResult, generatedResult - rawExpectedResult);
+         console.log(
+            "Result adjustment:",
+            rawExpectedResult,
+            generatedResult,
+            generatedResult - rawExpectedResult
+         );
          this.#opponentTargetScore = scoreFromResult(generatedResult, this.mode, {
             mods: [currentPick.modpool.toUpperCase()],
             map: dbMap?.mods || {},
@@ -246,15 +265,27 @@ export default class PvELobbyRef extends MpLobbyBase {
       ) {
          const command = msg.message.split(" ");
          await this._handlePickBan(command[0]);
-      } else if (this._getActivePlayerIndex() === 1 && msg.message.match(/^Available maps: /)) {
-         console.log("message", msg.message);
-         console.log("self", msg.self);
-         console.log("isClient", msg.user.isClient());
-         // Pick a map at random
-         const availableMaps = msg.message.substring("Available maps: ".length).split(", ");
-         const chosenMap = availableMaps[(Math.random() * availableMaps.length) | 0];
-         await this.systemMessage(chosenMap);
-         await this._handlePickBan(chosenMap);
+      } else if (
+         this._getActivePlayerIndex() === 1 &&
+         msg.self &&
+         msg.message.match(/^(?:Pick|Ban) [0-9]+: AI Opponent$/)
+      ) {
+         // Get the available maps
+         const available = this._getAvailableMaps()!;
+         // Are we picking or banning?
+         let chosenMap = 0;
+         if (msg.message.startsWith("Pick")) chosenMap = this.#strategy!.pickMap(available);
+         else chosenMap = this.#strategy!.banMap(available);
+         // Convert into nm1 format
+         const pool = this.mappool;
+         let index = 0;
+         const mod = Object.keys(pool).find(k => {
+            index = pool[k as ModPool].findIndex(m => m === chosenMap) + 1;
+            return index > 0;
+         });
+         const mapstring = `${mod}${index}`;
+         await this.systemMessage(mapstring);
+         await this._handlePickBan(mapstring);
       }
    }
 

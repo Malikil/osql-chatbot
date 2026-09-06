@@ -27,6 +27,7 @@ export function init(matchmaker: Matchmaker, lobbyManager: LobbyManager) {
       ],
       ["quali", lobbyManager.createLobby],
       ["pve", lobbyManager.createLobby]
+      // ["test", lobbyManager.createLobby]
    ];
    commands.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
    const infoText = `View info, rules, and commands [${process.env.INTERNAL_URL} Here]`;
